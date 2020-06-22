@@ -6,7 +6,7 @@ X=vn10
 colnames(X)=paste(dgn,1:21, sep="")
 prX=sapply(1:21,function(i){        
   y=cmdscale(dist(t(X[FSbootsC[[i]],])))   
-  s=svm(y[-i,], as.factor(dgn[-i]), gamma = 0.07, cost=1000, probability = T)
+  s=svm(y[-i,], as.factor(dgnC[-i]), gamma = 0.07, cost=1000, probability = T)
   x=predict(s, newdata=t(y[i,]))
   r=apply(y,2,range)
   pry=sapply(seq(r[,1][1], r[,1][2], length.out = 10), function(x1){         
@@ -14,13 +14,16 @@ prX=sapply(1:21,function(i){
       attr(predict(s, newdata=t(c(x1,x2)), probability = TRUE), "probabilities")[1]
     })
   })
-  fnm=paste("svmG\\SVMpred",i,".pdf",sep="")
-  pdf(file=fnm, width=7, height=6)
+  ii=i+21
+  path="svm\\"
+  fnm=paste("SVMpredContr_SupplFig_",ii,".pdf",sep="")
+  fn=paste(path,fnm, sep="")
+  pdf(file=fn, width=7, height=6)
   op=par(mai=c(1,1,1,1))
   image2D(t(pry),resfac = 10, col=cm.colors(1000), xaxt="n", yaxt="n", xlab="", ylab="", clab="Probability")
   op=par(new=TRUE,mai=c(1,1,1,1.575))
   par(new=T)
-  plot(y[-i,],cex=0, xlim=r[,1], ylim=r[,2], xlab="D1", ylab="D2")
+  plot(y[-i,],cex=0, xlim=r[,1], ylim=r[,2], xlab="D1", ylab="D2", main=fnm)
   points(t(y[i,]), cex=5, xlim=r[,1], ylim=r[,2], pch=1, xlim=r[,1], ylim=r[,2])
   text(y, labels=dgn, col=dgnf, xlim=r[,1], ylim=r[,2], xlab="D1", ylab="D2")
   dev.off()
@@ -41,7 +44,7 @@ parametersG=c(MCC=MCC, Acc=accuracy, F1=F1)
 
 prX=sapply(1:21,function(i){        
   y=cmdscale(dist(t(X[FSbootsG[[i]],])))   
-  s=svm(y[-i,], as.factor(dgn[-i]), gamma = 0.009, cost=50000, probability = T)
+  s=svm(y[-i,], as.factor(dgnG[-i]), gamma = 0.009, cost=50000, probability = T)
   x=predict(s, newdata=t(y[i,]))
   r=apply(y,2,range)
   pry=sapply(seq(r[,1][1], r[,1][2], length.out = 10), function(x1){         
@@ -49,13 +52,15 @@ prX=sapply(1:21,function(i){
       attr(predict(s, newdata=t(c(x1,x2)), probability = TRUE), "probabilities")[1]
     })
   })
-  fnm=paste("svmC\\SVMpred",i,".pdf",sep="")
-  pdf(file=fnm, width=7, height=6)
+  path="svm\\"
+  fnm=paste("SVMpredGBM_SupplFig_",i,".pdf",sep="")
+  fn=paste(path,fnm, sep="")
+  pdf(file=fn, width=7, height=6)
   op=par(mai=c(1,1,1,1))
   image2D(t(pry),resfac = 10, col=cm.colors(1000), xaxt="n", yaxt="n", xlab="", ylab="", clab="Probability")
   op=par(new=TRUE,mai=c(1,1,1,1.575))
   par(new=T)
-  plot(y[-i,],cex=0, xlim=r[,1], ylim=r[,2], xlab="D1", ylab="D2")
+  plot(y[-i,],cex=0, xlim=r[,1], ylim=r[,2], xlab="D1", ylab="D2", main=fnm)
   points(t(y[i,]), cex=5, xlim=r[,1], ylim=r[,2], pch=1, xlim=r[,1], ylim=r[,2])
   text(y, labels=dgn, col=dgnf, xlim=r[,1], ylim=r[,2], xlab="D1", ylab="D2")
   dev.off()
