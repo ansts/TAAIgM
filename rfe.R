@@ -15,7 +15,7 @@ rfe=function(m0,c){
   require(Rfast)
   require(reshape2)
   require(matrixStats)
-  require(beepr)
+
   if (is.logical(c)) cc=as.integer(c)+1 else cc=as.integer(c)
   #pt=proc.time()
   D0=c()
@@ -55,7 +55,7 @@ rfe=function(m0,c){
   
   bad=c(unlist(bad),unlist(rownames(m)))
   yr=range(D0[,2])
-  plot(nrow(D0):1,D0[,2])filepr("IgM/")      #
+  plot(nrow(D0):1,D0[,2])
 
 
   if (length(D0)>0) crit=D0[which.max(D0[,2]),1] else return(list(NA,NA,NA))

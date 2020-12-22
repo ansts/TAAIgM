@@ -5,18 +5,19 @@
 # In the 3-way classification the F1 and MCC ae calculated relative to 
 # GBM vs the rest. 
 
-SVMforValidation=function(L,X=vb10, D=dgnf){
+SVMforValidation=function(L,X=vb10s, D=dgnf){
  require(e1071)
  require(plot3D)
  n=length(unique(D))
  cpl2=colorRampPalette(c("#AFAFAF0A","#FF0FFF0A","#00FFF00A"))
-
+ lL=length(L)
+ 
  path=paste("svm",sample(10000,1),"\\", sep="", collapse="")
  dirsvm=dir.create(path) 
  print("Leave one out prediction compared to actual...")
  if (n==2) {
       gscan=c(0.001,0.005,0.01,0.05,0.07, 0.1,0.5,1,5,10)
-      prX=sapply(1:21,function(i){  
+      prX=sapply(1:lL,function(i){  
         y=cmdscale(dist(t(X[L[[i]],])),k=2)   
         z=sapply(gscan,function(j){
           s=svm(y[-i,],as.factor(D[-i]), gamma=j, cost=1000, probability = T)
@@ -68,7 +69,7 @@ SVMforValidation=function(L,X=vb10, D=dgnf){
       colB=colorRampPalette(c("#FFFFFF00","#0000B080"), alpha=T)
     
       gscan=c(0.001,0.005,0.01,0.05,0.07, 0.1,0.5,1,5,10)
-      prX=sapply(1:21,function(i){  
+      prX=sapply(1:lL,function(i){  
         y=cmdscale(dist(t(X[L[[i]],])),k=2)   
         z=sapply(gscan,function(j){
           s=svm(y[-i,], as.factor(D[-i]), gamma=j, cost=1000, probability = T)
@@ -107,8 +108,14 @@ SVMforValidation=function(L,X=vb10, D=dgnf){
       })
       gsc=unlist(apply(prX,2,function(l){l[2]}))
       prX=unlist(apply(prX,2,function(l){l[1]}))
-      
+      t0=array(0,dim = c(3,3))
       t=table(D,as.character(prX))
+      for (i in 1:ncol(t)){
+        t0[,i]=t[,i]
+      }
+      rownames(t0)=rownames(t)
+      colnames(t0)=rownames(t0)
+      t=t0
       print(t)
       
       TP=t[2,2]

@@ -76,7 +76,7 @@ cnrn=which(rownames(v1) %in% cn)
 v1=v1[-union(cnrn, badrows),]    # remove control peptides and peptides with CV>0.2 in at least 1 pat.
 pep=rownames(v1)
 
-vn=normalizeCyclicLoess(v1, iterations=3, method="affy")
+vn=normalizeCyclicLoess(v1, iterations=1, method="affy")
 batch=c(rep(1,10),rep(2,11))
 mm=model.matrix(~as.factor(dgn))
 vb10=ComBat(vn, batch, mod=mm)
@@ -115,6 +115,15 @@ x=sumglm$coefficients[sumglm$coefficients[,4]<0.05,]
 print(x[order(abs(x[,3]), decreasing = T),])
 sink()
 
+write.csv(vb10, file="vb10.csv")
+
+plot(rowMeans(vb10),rowSds(vb10), cex=0.3)
+
+callslm=rownames(sumglm$coefficients)[sumglm$coefficients[,4]<0.05]
+callslm=callslm[grep("\\bD",callslm)]
+callslm=stri_extract_all(callslm,regex="(?<=:Ag_).+")
+pcallslm=pepinfo[pepinfo$V1 %in% callslm,2]
+vb10s=vb10[rownames(vb10) %in% pcallslm,]  
 
 ###############################################################################
 # Search for relevant profiles using z scores
@@ -132,7 +141,7 @@ zsets3=parSapply(cl,1:21, function(i){             # leave one out loop
   X=vb10[,-i]
   dg=as.double(dgnf[-i])
   dgu=unique(dg)
-  ndg=table(dg)                                     # individual z scores for
+  ndg=table(dg)                                  # individual z scores for
   x=t(X)                                         # each peptide's reactivity  
   xm=aggregate(x,by=list(dg), FUN="mean")        # with each patient relative
   xm=t(xm)[-1,]                                  # to the mean reactivity 
@@ -152,7 +161,7 @@ zsets3=parSapply(cl,1:21, function(i){             # leave one out loop
   })                                            # the greater extreme positive  
   return(y)                                     # value and the lesser extreme  
 })                                              # negative value is selected
-stopCluster(cl)                                 # rendering the criterion more 
+stopCluster(cl)                                 # rendering the criterion  
 print(proc.time()-proct)                        # more stringent for the negative.
 
 zsets3=array(zsets3,dim = c(N,20,21))
