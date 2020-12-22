@@ -23,6 +23,8 @@
 # pep - final set of sequences with order preserved 
 # dgn - diagnosis
 
+rm(list=ls())
+ls()
 require(stringi)
 require(matrixStats)
 require(pepStat)
@@ -49,14 +51,12 @@ require(pbapply)
 cpl=colorRampPalette(c("#0000A000","#0000FF00","#00FF0000","#FFFF0000","#FFFFFF00","#FF000000"))
 cpl1=colorRampPalette(c("#0000AF00","#FF000000"))
 
-
 filepr("IgM/")      #
 mapFile="mapall.csv"
 dirToParse="SVMBkgr"
 cn=c("YPYDVPDYAG", "DYKDDDDKAS")
-pSet=makePeptideSet(path=dirToParse, mapping.file = mapFile)
-pnSet=normalizeArray(pSet, centered = FALSE)   
-
+pSet=makePeptideSet(path=dirToParse, mapping.file = mapFile)   # also applies normexp backgorund correcion based on the background calculated by gprLocNorSVM
+pnSet=normalizeArray(pSet, centered = FALSE)                   # removes dependence on the chemical composition of the aa independednt of the sequence
 coln=paste(1:21,pnSet@phenoData@data$diag, sep="_")
 dgn=pnSet@phenoData@data$diag
 dgnf=as.double(as.factor(dgn))

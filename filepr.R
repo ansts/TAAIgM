@@ -15,6 +15,6 @@ filepr<-function(path, sh=F, RG=T) {
       stopCluster(cl)
     }
     else {
-    lapply(lf, function(x){gprLocNorSVM(x, p=path, shw=sh, Rsw=RG)})
+      lapply(lf, function(x){gprLocNorSVM(x, p=path, shw=sh, Rsw=RG)})
     }
 }

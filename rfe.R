@@ -55,7 +55,8 @@ rfe=function(m0,c){
   
   bad=c(unlist(bad),unlist(rownames(m)))
   yr=range(D0[,2])
-  plot(nrow(D0):1,D0[,2])
+  plot(nrow(D0):1,D0[,2])filepr("IgM/")      #
+
 
   if (length(D0)>0) crit=D0[which.max(D0[,2]),1] else return(list(NA,NA,NA))
   if (crit<2) crit=2
