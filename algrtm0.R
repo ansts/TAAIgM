@@ -47,6 +47,8 @@ require(qualV)
 require(igraph)
 require(factoextra)
 require(pbapply)
+require(Rfast)
+require(boot)
 
 cpl=colorRampPalette(c("#0000A000","#0000FF00","#00FF0000","#FFFF0000","#FFFFFF00","#FF000000"))
 cpl1=colorRampPalette(c("#0000AF00","#FF000000"))
@@ -137,8 +139,8 @@ clusterExport(cl, ex)
 clusterEvalQ(cl, library(matrixStats))
 clusterExport(cl, list("vb10","dgnf"), envir=environment())
 
-zsets3=parSapply(cl,1:21, function(i){             # leave one out loop
-  X=vb10[,-i]
+zsets3=pbsapply(1:21, function(i){             # leave one out loop
+  X=scale(vb10[,-i])
   dg=as.double(dgnf[-i])
   dgu=unique(dg)
   ndg=table(dg)                                  # individual z scores for
@@ -148,61 +150,56 @@ zsets3=parSapply(cl,1:21, function(i){             # leave one out loop
   xsd=aggregate(x,by=list(dg), FUN="sd")         # of the same peptide in 
   xsd=t(xsd)[-1,]                                # the patients with the 2 alternative diagnoses
   y=sapply(1:20,function(a){                       
-    z=sapply((1:3)[-dg[a]], function(j){
-      (X[,a]-xm[,j])/(xsd[,j]*sqrt(ndg[j]))
-    })
-    xi=rowMaxs(z)
-    #xi=apply(z,1,function(l){
-    #  i=which.max(abs(l))                      # Ultimately retain only the 
-    #  return(l[i])                             # z score with the higher value.
-    #})                                         # This yields better results
-                                                # then taking the greater absolute 
-    return(xi)                                  # value. The effect is that 
-  })                                            # the greater extreme positive  
-  return(y)                                     # value and the lesser extreme  
-})                                              # negative value is selected
-stopCluster(cl)                                 # rendering the criterion  
-print(proc.time()-proct)                        # more stringent for the negative.
+    z=sapply((1:3)[-dg[a]], function(j){         # Ultimately retain only the 
+      (X[,a]-xm[,j])/(xsd[,j]*sqrt(ndg[j]))      # z score with the higher absolute value.
+    })                                           
+    xi=Rfast::rowMaxs(z, value = F)
+    xi=z[cbind(seq_along(xi),xi)]                           
+  return(xi)                                      
+  })                                             
+  return(y)                                      
+},  cl=cl )                                      
+stopCluster(cl)                                  
+print(proc.time()-proct)                         
 
 zsets3=array(zsets3,dim = c(N,20,21))
 
-zsBS3=sapply(1:20, function(i){     # bootstrap iterations
+####### bootstrap 
   
-  cl <- makeCluster(6)
-  ex <- Filter(function(x) is.function(get(x, .GlobalEnv)), ls(.GlobalEnv))
-  clusterExport(cl, ex)
-  clusterEvalQ(cl, library(matrixStats))
-  clusterExport(cl, list("vb10","dgnf"), envir=environment())
-  
-  zi=parSapply(cl,1:21, function(i){              # scrambled matrix zsets 
-    X=matrix(sample(vb10[,-i]), nrow = nrow(vb10))
-    dg=as.double(dgnf[-i])
-    ndg=table(dg)
-    print(i)
-    x=t(X)
-    xm=aggregate(x,by=list(dg), FUN="mean")
+cl <- makeCluster(6)
+ex <- Filter(function(x) is.function(get(x, .GlobalEnv)), ls(.GlobalEnv))
+clusterExport(cl, ex)
+clusterEvalQ(cl, library(matrixStats))
+clusterExport(cl, list("vb10","dgnf"), envir=environment())
+
+zsBS3=pbsapply(1:21, function(i){              # scrambled matrix zsets 
+  X=vb10[,-i]
+  dg=as.double(dgnf[-i])
+  ndg=table(dg)
+
+  zi=sapply(1:5000, function(i){ 
+    X=apply(X,1,sample)
+    xm=aggregate(X,by=list(dg), FUN="mean")
     xm=t(xm)[-1,]
-    xsd=aggregate(x,by=list(dg), FUN="sd")
-    xsd=t(xsd)[-1,]    
+    xsd=aggregate(X,by=list(dg), FUN="sd")
+    xsd=t(xsd)[-1,]
+    X=t(X)
     y=sapply(1:20,function(a){
       z=sapply((1:3)[-dg[a]], function(j){
-        (X[,a]-xm[,j])/(xsd[,j]*sqrt(ndg[j]))
-      })
-      xi=rowMaxs(z)
-      #x=apply(z,1,function(l){
-      #  i=which.max(abs(l))
-      #  return(l[i])
-      #})
-      q=quantile(xi, c(0,0.001,0.999,1)) 
-      return(q)
+          (X[,a]-xm[,j])/(xsd[,j]*sqrt(ndg[j]))
+        })
+      #xi=apply(z,1,function(l) l[which.max(abs(l))]) 
+      xi=Rfast::rowMaxs(z, value = F)
+      xi=z[cbind(seq_along(xi),xi)]
+      return(xi)
     })
     return(y)
   })
-  stopCluster(cl)
-  return(zi)
-})
+  cbind(apply(zi,1,quantile,0.0002) ,apply(zi,1,quantile,0.9998))
+},cl=cl)
+stopCluster(cl)
 
-zsaBS3=array(zsBS3, dim=c(4,20,21,20))
+zsaBS3=array(zsBS3, dim=c(2,N,20,21))  #?
 CLlo=quantile(zsaBS3[2,,,], 0.5)         # taking the CL for the 0.001 and 
 CLhi=quantile(zsaBS3[3,,,], 0.5)         # 0.999 quantile
 
