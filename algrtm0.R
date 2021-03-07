@@ -49,6 +49,7 @@ require(factoextra)
 require(pbapply)
 require(Rfast)
 require(boot)
+require(multimode)
 
 cpl=colorRampPalette(c("#0000A000","#0000FF00","#00FF0000","#FFFF0000","#FFFFFF00","#FF000000"))
 cpl1=colorRampPalette(c("#0000AF00","#FF000000"))
@@ -148,30 +149,37 @@ zsets3=pbsapply(1:21, function(i){             # leave one out loop
     dgi=dgu[dgu!=dg[a]]
     pm=sapply(dgi, function(dia){
       i=dg==dia
-      m=scale(t(cbind(X[,a],X[,i])))[1,]
-      bs=sapply(1:200, function(j){
-        xbs=apply(X,1,sample)
-        scale(rbind(xbs[a,],xbs[i,]))[1,]
-      })
-      m=sapply(1:nrow(bs),function(i) ecdf(bs[i,])(m[i]))
-      return(m)
+#      m=scale(t(cbind(X[,a],X[,i])))[1,]
+#      bs=sapply(1:200, function(j){
+#        xbs=apply(X,1,sample)
+#        scale(rbind(xbs[a,],xbs[i,]))[1,]
+#      })
+#      m=sapply(1:nrow(bs),function(i) ecdf(bs[i,])(m[i]))
+      X[,a]<Rfast::rowMins(X[,i], value = T)|X[,a]>Rfast::rowMaxs(X[,i], value = T)
     })
-    rowMaxs(abs(pm-0.5),value = T)
-  })                                             
-  return(y)                                      
+    #rowMaxs(abs(pm-0.5),value = T)
+    apply(pm,1,any)
+  })
+  #rownames(y)=rownames(vb10)
+  return(rowSums(y))                                      
 },  cl=cl )                                      
 stopCluster(cl)                                  
 print(proc.time()-proct)                         
 
-zsets3=array(zsets3,dim = c(N,20,21))
+zsets3calls=apply(zsets3,2,function(col) rownames(zsets3)[col>10])
 
-zsets3calls=sapply(1:21,function(i){
-  m=zsets3[,,i]
-  x=rowSums(m==0.5)==2
-  rownames(vb10)[x]
-})
+save(vb10,dgnf, zsets3calls, file="vars")
+
+#zsets3=array(zsets3,dim = c(N,20,21))
+
+#zsets3calls=sapply(1:21,function(i){
+#  m=zsets3[,,i]
+#  x=rowSums(m>.45)==3
+#  rownames(vb10)[x]
+#})
 
 confusiomM_direct=SVMforValidation(zsets3calls)
+for (i in 1:21) {plotMDS(vb10[zsets3calls[[i]],], col=dgnf, main=coln[i])}
 
 proct=proc.time()
 cl <- makeCluster(6)
@@ -185,6 +193,11 @@ zsets3callsfs=pblapply(1:21, function(i){   # Recursive feature selection step
 }, cl=cl)
 stopCluster(cl)
 print(proc.time()-proct) 
+
+load("F_1")
+zsets3callsfs=fs
+load("F_2")
+zsets3callsfs=c(zsets3callsfs,fs)
 
 confusiomM_fs=SVMforValidation(zsets3callsfs)
 
