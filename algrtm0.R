@@ -140,22 +140,23 @@ clusterEvalQ(cl, library(matrixStats))
 clusterExport(cl, list("vb10","dgnf"), envir=environment())
 
 zsets3=pbsapply(1:21, function(i){             # leave one out loop
-  X=scale(vb10[,-i])
+  X=vb10[,-i]
   dg=as.double(dgnf[-i])
   dgu=unique(dg)
-  ndg=table(dg)                                  # individual z scores for
-  x=t(X)                                         # each peptide's reactivity  
-  xm=aggregate(x,by=list(dg), FUN="mean")        # with each patient relative
-  xm=t(xm)[-1,]                                  # to the mean reactivity 
-  xsd=aggregate(x,by=list(dg), FUN="sd")         # of the same peptide in 
-  xsd=t(xsd)[-1,]                                # the patients with the 2 alternative diagnoses
-  y=sapply(1:20,function(a){                       
-    z=sapply((1:3)[-dg[a]], function(j){         # Ultimately retain only the 
-      (X[,a]-xm[,j])/(xsd[,j]*sqrt(ndg[j]))      # z score with the higher absolute value.
-    })                                           
-    xi=Rfast::rowMaxs(z, value = F)
-    xi=z[cbind(seq_along(xi),xi)]                           
-  return(xi)                                      
+
+  y=sapply(1:20,function(a){ 
+    dgi=dgu[dgu!=dg[a]]
+    pm=sapply(dgi, function(dia){
+      i=dg==dia
+      m=scale(t(cbind(X[,a],X[,i])))[1,]
+      bs=sapply(1:200, function(j){
+        xbs=apply(X,1,sample)
+        scale(rbind(xbs[a,],xbs[i,]))[1,]
+      })
+      m=sapply(1:nrow(bs),function(i) ecdf(bs[i,])(m[i]))
+      return(m)
+    })
+    rowMaxs(abs(pm-0.5),value = T)
   })                                             
   return(y)                                      
 },  cl=cl )                                      
@@ -164,67 +165,26 @@ print(proc.time()-proct)
 
 zsets3=array(zsets3,dim = c(N,20,21))
 
-####### bootstrap 
-  
-cl <- makeCluster(6)
-ex <- Filter(function(x) is.function(get(x, .GlobalEnv)), ls(.GlobalEnv))
-clusterExport(cl, ex)
-clusterEvalQ(cl, library(matrixStats))
-clusterExport(cl, list("vb10","dgnf"), envir=environment())
-
-zsBS3=pbsapply(1:21, function(i){              # scrambled matrix zsets 
-  X=vb10[,-i]
-  dg=as.double(dgnf[-i])
-  ndg=table(dg)
-
-  zi=sapply(1:5000, function(i){ 
-    X=apply(X,1,sample)
-    xm=aggregate(X,by=list(dg), FUN="mean")
-    xm=t(xm)[-1,]
-    xsd=aggregate(X,by=list(dg), FUN="sd")
-    xsd=t(xsd)[-1,]
-    X=t(X)
-    y=sapply(1:20,function(a){
-      z=sapply((1:3)[-dg[a]], function(j){
-          (X[,a]-xm[,j])/(xsd[,j]*sqrt(ndg[j]))
-        })
-      #xi=apply(z,1,function(l) l[which.max(abs(l))]) 
-      xi=Rfast::rowMaxs(z, value = F)
-      xi=z[cbind(seq_along(xi),xi)]
-      return(xi)
-    })
-    return(y)
-  })
-  cbind(apply(zi,1,quantile,0.0002) ,apply(zi,1,quantile,0.9998))
-},cl=cl)
-stopCluster(cl)
-
-zsaBS3=array(zsBS3, dim=c(2,N,20,21))  #?
-CLlo=quantile(zsaBS3[2,,,], 0.5)         # taking the CL for the 0.001 and 
-CLhi=quantile(zsaBS3[3,,,], 0.5)         # 0.999 quantile
-
-zsets3pos=sapply(1:21,function(i){
+zsets3calls=sapply(1:21,function(i){
   m=zsets3[,,i]
-  x=t(apply(m, 1, function(j){
-    j<CLlo|j>CLhi
-  }))
-  return(x)
-})
-
-zsets3pos=array(zsets3pos, dim=c(N,20,21))
-zsets3calls=apply(zsets3pos,3,function(m){
-  x=rowSums(m)
-  x=rownames(vb10)[x>1]                 # the peptides with z above the threshold 
-  return(x)                             # for at least two patients are selected
+  x=rowSums(m==0.5)==2
+  rownames(vb10)[x]
 })
 
 confusiomM_direct=SVMforValidation(zsets3calls)
 
-zsets3callsfs=lapply(1:21, function(i){   # Recursive feature selection step
+proct=proc.time()
+cl <- makeCluster(6)
+ex <- Filter(function(x) is.function(get(x, .GlobalEnv)), ls(.GlobalEnv))
+clusterExport(cl, ex)
+clusterExport(cl, list("vb10","dgnf","zsets3calls"), envir=environment())
+zsets3callsfs=pblapply(1:21, function(i){   # Recursive feature selection step
   l=zsets3calls[[i]]
   x=rfe(vb10[l,-i], dgnf[-i])
   return(rownames(x[[1]]))
-})
+}, cl=cl)
+stopCluster(cl)
+print(proc.time()-proct) 
 
 confusiomM_fs=SVMforValidation(zsets3callsfs)
 
@@ -236,7 +196,7 @@ zsets3callsGfs=lapply(1:21, function(i){ # dichotomous classification of GBM vs 
   return(rownames(x[[1]]))
 })
 
-confusiomM_Gfs=SVMforValidation(zsets3callsfs, D=dgnG)
+confusiomM_Gfs=SVMforValidation(zsets3callsfs, D=dgnf)
 
 # The profiles are ordered by the number of "bootstrap" sets the features  
 # are common for (using the leave one out scheme data as a bootstrap of a sort) 
