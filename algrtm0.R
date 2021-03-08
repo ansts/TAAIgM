@@ -149,26 +149,18 @@ zsets3=pbsapply(1:21, function(i){             # leave one out loop
     dgi=dgu[dgu!=dg[a]]
     pm=sapply(dgi, function(dia){
       i=dg==dia
-#      m=scale(t(cbind(X[,a],X[,i])))[1,]
-#      bs=sapply(1:200, function(j){
-#        xbs=apply(X,1,sample)
-#        scale(rbind(xbs[a,],xbs[i,]))[1,]
-#      })
-#      m=sapply(1:nrow(bs),function(i) ecdf(bs[i,])(m[i]))
-      X[,a]<Rfast::rowMins(X[,i], value = T)|X[,a]>Rfast::rowMaxs(X[,i], value = T)
+      m=scale(t(cbind(X[,a],X[,i])))[1,]
     })
-    #rowMaxs(abs(pm-0.5),value = T)
-    apply(pm,1,any)
+    rowMaxs(pm, value = T)
   })
-  #rownames(y)=rownames(vb10)
-  return(rowSums(y))                                      
-},  cl=cl )                                      
+  rowSums(abs(y>2))},  cl=cl )                                      
 stopCluster(cl)                                  
 print(proc.time()-proct)                         
 
-zsets3calls=apply(zsets3,2,function(col) rownames(zsets3)[col>10])
+rownames(zsets3)=rownames(vb10)
+zsets3calls=apply(zsets3,2,function(col) rownames(zsets3)[col>1])
 
-save(vb10,dgnf, zsets3calls, file="vars")
+save(vb10,dgnG, dgnf, zsets3calls, file="vars")
 
 #zsets3=array(zsets3,dim = c(N,20,21))
 
@@ -201,34 +193,64 @@ zsets3callsfs=c(zsets3callsfs,fs)
 
 confusiomM_fs=SVMforValidation(zsets3callsfs)
 
-for (i in 1:21) {plotMDS(vb10[zsets3callsfs[[i]],], col=dgnf, main=coln[i])}
-
-zsets3callsGfs=lapply(1:21, function(i){ # dichotomous classification of GBM vs the rest
-  l=zsets3calls[[i]]
-  x=rfe(vb10[l,-i], dgnG[-i])
-  return(rownames(x[[1]]))
-})
-
-confusiomM_Gfs=SVMforValidation(zsets3callsfs, D=dgnf)
 
 # The profiles are ordered by the number of "bootstrap" sets the features  
 # are common for (using the leave one out scheme data as a bootstrap of a sort) 
 # starting from none (all features are concatenated) to max 21 
 # - the features found in all (or most) bootstrap sets. 
 
-FSzsets3t=table(unlist(zsets3callsfs))
-FSzscom3=sapply(0:20, function(i){
-  x=names(FSzsets3t)[FSzsets3t>i]
-  x[order(FSzsets3t[x])]
+FSzsetst=table(unlist(zsets3callsfs))
+FSzscom=sapply(0:20, function(i){
+  x=names(FSzsetst)[FSzsets3t>i]
+  x[order(FSzsetst[x])]
 })
 
-for (i in 1:21) plotMDS(vb10[FSzscom3[[i]],], col=dgnf, main=i)
+for (i in 1:21) plotMDS(vb10[FSzscom[[i]],], col=dgnf, main=i)
 
-FSzscom3cri=sapply(1:19, function(i){  # Selection of the bootstrap set 
-  clucri(vb10[FSzscom3[[i]],], dgnf)
+FSzscomcri=sapply(1:20, function(i){  # Selection of the bootstrap set 
+  clucri(vb10[FSzscom[[i]],], dgnf)
 })
 
 pdf(file="hmzSets.pdf")
-heatmap.2(vb10[FSzscom3[[10]],], hclustfun = hclwrd, scale="row", na.rm=F,key.title = NA, symkey=FALSE, cexCol=1,trace="none",col=cpl1(100), colsep=c(7,12), rowsep=c(2,3,6), margins = c(5,12), lwid=c(0.5,1), lhei = c(0.25,1))
-dev.off()
+heatmap.2(vb10[FSzscom[[5]],], hclustfun = hclwrd, scale="row", na.rm=F,key.title = NA, colsep=c(2,5,10,15),rowsep=c(10,15,21,31,42,52,60,82),symkey=FALSE, cexCol=1,cexRow=0.4, trace="none",col=cpl1(100), margins = c(5,12), lwid=c(0.5,1), lhei = c(0.2,1))
+dev.off()  #  
 
+hclFSzsc=hclust(dist(vb10[FSzscom[[5]],]), method="ward.D2")
+ct15=cutree(hclFSzsc,h=15)
+ct10=cutree(hclFSzsc,h=10)
+ct6=cutree(hclFSzsc,h=6)
+cts=cbind(ct15,ct10,ct6)
+cts=cts[hclFSzsc$order,]
+pepFS5=rownames(cts)
+pats=colnames(vb10)
+
+clstspep=c()
+clstspep[[1]]=rownames(cts)[cts[,1]==4]
+clstspep[[2]]=rownames(cts)[cts[,1]==1]
+clstspep[[3]]=rownames(cts)[cts[,2]==5]
+clstspep[[4]]=rownames(cts)[cts[,2]==3]
+clstspep[[5]]=rownames(cts)[cts[,2]==6]
+clstspep[[6]]=rownames(cts)[cts[,3]==4]
+clstspep[[7]]=rownames(cts)[cts[,3]==12]
+clstspep[[8]]=rownames(cts)[cts[,3]==21]
+clstspep[[9]]=rownames(cts)[cts[,3]==5]
+
+clstprots=lapply(clstspep,function(i) pepiused[i])
+GBMup=sort(unlist(clstprots[c(5,8,9)]))
+GBMdown=sort(unlist(clstprots[c(2,4,6)]))
+
+unqprots=table(pepiused)
+x=sapply(unqprots,function(x) x=0)
+gbmupt=table(GBMup)
+x[names(gbmupt)]=gbmupt
+gbmupt=x
+x=sapply(unqprots,function(x) x=0)
+gbmdnt=table(GBMdown)
+x[names(gbmdnt)]=gbmdnt
+gbmdnt=x
+ttltbl=cbind(unqprots-(gbmdnt+gbmupt),gbmupt,gbmdnt)
+xsqttltb=chisq.test(ttltbl, simulate.p.value = T)
+sort(xsqttltb$residuals[,2])
+sort(xsqttltb$residuals[,3])
+
+z=ttltbl[rowSums(ttltbl[,2:3])>0,]
