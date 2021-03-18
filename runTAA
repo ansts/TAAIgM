@@ -1,0 +1,12 @@
+#!/bin/bash
+
+#PBS -q lifesci
+#PBS -l nodes=1:ppn=16
+#PBS l walltime=60:00:00
+#PBS -N LooFS
+#PBS -o L_${counter}_out
+#PBS -e L_${counter}_err
+cd ~/TAAGBM
+
+
+/opt/soft/R-3.5.0/bin/Rscript --no-save --no-restore runLoo.R $counter

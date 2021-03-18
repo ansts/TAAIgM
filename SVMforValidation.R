@@ -5,7 +5,7 @@
 # In the 3-way classification the F1 and MCC ae calculated relative to 
 # GBM vs the rest. 
 
-SVMforValidation=function(L,X=vb10s, D=dgnf){
+SVMforValidation=function(L,X=vb10, D=dgnG){
  require(e1071)
  require(plot3D)
  n=length(unique(D))
@@ -21,15 +21,15 @@ SVMforValidation=function(L,X=vb10s, D=dgnf){
         y=cmdscale(dist(t(X[L[[i]],])),k=2)   
         z=sapply(gscan,function(j){
           s=svm(y[-i,],as.factor(D[-i]), gamma=j, cost=1000, probability = T)
-          x=predict(s, newdata=t(y[i,]), probability = T)
+          x=predict(s, newdata=t(y[i,]))
           return(x)
         })
         j=which(z==D[i])
         prd=z==D[i]
         print(any(prd))
-        if (length(j)>0) j=round(median(j),0) else j=5
+        if (length(j)>0) j=j[length(j)] else j=5
         s=svm(y[-i,],as.factor(D[-i]), gamma=gscan[j], cost=1000, probability = T)
-        x=predict(s, newdata=t(y[i,]), probability = T)
+        x=predict(s, newdata=t(y[i,]))
         r=apply(y,2,range)
         pry=sapply(seq(r[,1][1], r[,1][2], length.out = 10), function(x1){         
           sapply(seq(r[,2][1], r[,2][2], length.out = 10), function(x2){
@@ -48,7 +48,7 @@ SVMforValidation=function(L,X=vb10s, D=dgnf){
         points(t(y[i,]), cex=5, xlim=r[,1], ylim=r[,2], pch=1, xlim=r[,1], ylim=r[,2])
         text(y, labels=dgn, col=dgnf, xlim=r[,1], ylim=r[,2], xlab="D1", ylab="D2")
         dev.off()
-        return(list(x,gscan[j]))
+        return(list(as.logical(x),gscan[j]))
       })
       gsc=unlist(apply(prX,2,function(l){l[2]}))
       prX=unlist(apply(prX,2,function(l){l[1]}))

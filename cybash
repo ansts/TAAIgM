@@ -1,0 +1,6 @@
+#!/bin/bash 
+for i in {1..2}  
+do
+	echo "Sending job $i"
+	qsub -v counter=$i runTAA
+done

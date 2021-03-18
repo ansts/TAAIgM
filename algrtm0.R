@@ -50,8 +50,11 @@ require(pbapply)
 require(Rfast)
 require(boot)
 require(multimode)
+require(multcomp)
+require(Biostrings)
+library(lsmeans)
 
-cpl=colorRampPalette(c("#0000A000","#0000FF00","#00FF0000","#FFFF0000","#FFFFFF00","#FF000000"))
+cpl=colorRampPalette(c("#00000000","#0000B000","#00B0B000","#00FF0A00","#FFFF0000","#FF000000"))
 cpl1=colorRampPalette(c("#0000AF00","#FF000000"))
 
 filepr("IgM/")      #
@@ -110,8 +113,18 @@ x=stri_extract_all(vb10agL$D, regex="(?<=_)\\w+" )
 vb10agL$D_=unlist(x)
 x=pepiused[vb10agL$Seq_]
 vb10agL=cbind(vb10agL,Ag_=x)
-glm_vb10=glm(Val~D_*Ag_, family = "gaussian", data=as.data.frame(vb10agL))
+vb10agL$D_=as.factor(vb10agL$D_)
+vb10agL$Ag_=as.factor(vb10agL$Ag_)
+
+glm_vb10=glm(Val~D_*Ag_+0, family = "gaussian", data=as.data.frame(vb10agL))
 sumglm=summary(glm_vb10)
+sglm=sumglm$coefficients[sumglm$coefficients[,4]<0.05,]
+sglm[order(sglm[,1],decreasing = T),]
+
+posth=summary(glht(glm_vb10, lsm(pairwise ~ D_|Ag_), by=NULL))
+resposth=cbind(posth$test$coefficients,posth$test$pvalues)
+colnames(resposth)=c("Coefficients","P.Value")
+resposth[resposth[,2]<0.1,]
 
 sink("glm_summary.txt")
 x=sumglm$coefficients[sumglm$coefficients[,4]<0.05,]
@@ -133,12 +146,13 @@ vb10s=vb10[rownames(vb10) %in% pcallslm,]
 ###############################################################################
 
 N=nrow(vb10)
+dgnM=dgnf==3
 proct=proc.time()
 cl <- makeCluster(6)
 ex <- Filter(function(x) is.function(get(x, .GlobalEnv)), ls(.GlobalEnv))
 clusterExport(cl, ex)
 clusterEvalQ(cl, library(matrixStats))
-clusterExport(cl, list("vb10","dgnf"), envir=environment())
+clusterExport(cl, list("vb10","dgnf","N"), envir=environment())
 
 zsets3=pbsapply(1:21, function(i){             # leave one out loop
   X=vb10[,-i]
@@ -151,40 +165,23 @@ zsets3=pbsapply(1:21, function(i){             # leave one out loop
       i=dg==dia
       m=scale(t(cbind(X[,a],X[,i])))[1,]
     })
-    rowMaxs(pm, value = T)
+    j=cbind(1:N,max.col(abs(pm)))
+    pm[j]
   })
-  rowSums(abs(y>2))},  cl=cl )                                      
+  rowSums(abs(y)>2)},  cl=cl )                                      
 stopCluster(cl)                                  
 print(proc.time()-proct)                         
 
 rownames(zsets3)=rownames(vb10)
 zsets3calls=apply(zsets3,2,function(col) rownames(zsets3)[col>1])
 
-save(vb10,dgnG, dgnf, zsets3calls, file="vars")
+save(vb10,dgnG, dgnf, dgnM, dgnC, zsets3calls, file="vars")
 
-#zsets3=array(zsets3,dim = c(N,20,21))
-
-#zsets3calls=sapply(1:21,function(i){
-#  m=zsets3[,,i]
-#  x=rowSums(m>.45)==3
-#  rownames(vb10)[x]
-#})
-
-confusiomM_direct=SVMforValidation(zsets3calls)
-for (i in 1:21) {plotMDS(vb10[zsets3calls[[i]],], col=dgnf, main=coln[i])}
-
-proct=proc.time()
-cl <- makeCluster(6)
-ex <- Filter(function(x) is.function(get(x, .GlobalEnv)), ls(.GlobalEnv))
-clusterExport(cl, ex)
-clusterExport(cl, list("vb10","dgnf","zsets3calls"), envir=environment())
-zsets3callsfs=pblapply(1:21, function(i){   # Recursive feature selection step
-  l=zsets3calls[[i]]
-  x=rfe(vb10[l,-i], dgnf[-i])
-  return(rownames(x[[1]]))
-}, cl=cl)
-stopCluster(cl)
-print(proc.time()-proct) 
+###############################################################################
+# The recursive feature elimination is performed on a HPC using the bash scripts
+# cybash and runTAA as well as the R scripts runLoo.R and Loo.R in parallel
+# on 21 cores. The results are passed in the data files F_1 and F_2.
+###############################################################################
 
 load("F_1")
 zsets3callsfs=fs
@@ -193,7 +190,6 @@ zsets3callsfs=c(zsets3callsfs,fs)
 
 confusiomM_fs=SVMforValidation(zsets3callsfs)
 
-
 # The profiles are ordered by the number of "bootstrap" sets the features  
 # are common for (using the leave one out scheme data as a bootstrap of a sort) 
 # starting from none (all features are concatenated) to max 21 
@@ -201,56 +197,69 @@ confusiomM_fs=SVMforValidation(zsets3callsfs)
 
 FSzsetst=table(unlist(zsets3callsfs))
 FSzscom=sapply(0:20, function(i){
-  x=names(FSzsetst)[FSzsets3t>i]
+  x=names(FSzsetst)[FSzsetst>i]
   x[order(FSzsetst[x])]
 })
 
+# Visualization in 2D using multidimensional scaling
+
 for (i in 1:21) plotMDS(vb10[FSzscom[[i]],], col=dgnf, main=i)
 
-FSzscomcri=sapply(1:20, function(i){  # Selection of the bootstrap set 
+# Finding level of commonality of the features that optimizes the clustring 
+
+FSzscomcri=sapply(1:19, function(i){  # Selection of the bootstrap set 
   clucri(vb10[FSzscom[[i]],], dgnf)
 })
 
 pdf(file="hmzSets.pdf")
-heatmap.2(vb10[FSzscom[[5]],], hclustfun = hclwrd, scale="row", na.rm=F,key.title = NA, colsep=c(2,5,10,15),rowsep=c(10,15,21,31,42,52,60,82),symkey=FALSE, cexCol=1,cexRow=0.4, trace="none",col=cpl1(100), margins = c(5,12), lwid=c(0.5,1), lhei = c(0.2,1))
+heatmap.2(vb10[FSzscom[[8]],], hclustfun = hclwrd,  na.rm=F,key.title = NA, colsep=c(4,10,15),rowsep=c(14,25,41,48,58,67,80,90),symkey=FALSE, cexCol=1,cexRow=0.4, trace="none",col=cpl(1000), margins = c(5,12), lwid=c(0.5,1), lhei = c(0.2,1))
 dev.off()  #  
 
-hclFSzsc=hclust(dist(vb10[FSzscom[[5]],]), method="ward.D2")
-ct15=cutree(hclFSzsc,h=15)
+################################################################################
+# Analysis of peptide clusters
+################################################################################
+
+hclFSzsc=hclust(dist(vb10[FSzscom[[8]],]), method="ward.D2")
 ct10=cutree(hclFSzsc,h=10)
-ct6=cutree(hclFSzsc,h=6)
-cts=cbind(ct15,ct10,ct6)
+ct8=cutree(hclFSzsc,h=8)
+cts=cbind(ct10,ct8)
 cts=cts[hclFSzsc$order,]
-pepFS5=rownames(cts)
+pepFS8=rownames(cts)
 pats=colnames(vb10)
 
 clstspep=c()
-clstspep[[1]]=rownames(cts)[cts[,1]==4]
-clstspep[[2]]=rownames(cts)[cts[,1]==1]
-clstspep[[3]]=rownames(cts)[cts[,2]==5]
-clstspep[[4]]=rownames(cts)[cts[,2]==3]
-clstspep[[5]]=rownames(cts)[cts[,2]==6]
-clstspep[[6]]=rownames(cts)[cts[,3]==4]
-clstspep[[7]]=rownames(cts)[cts[,3]==12]
-clstspep[[8]]=rownames(cts)[cts[,3]==21]
-clstspep[[9]]=rownames(cts)[cts[,3]==5]
+clstspep[[1]]=rownames(cts)[cts[,2]==2]
+clstspep[[2]]=rownames(cts)[cts[,2]==6]
+clstspep[[3]]=rownames(cts)[cts[,1]==4]
+clstspep[[4]]=rownames(cts)[cts[,1]==5]
+clstspep[[5]]=rownames(cts)[cts[,2]==10]
+clstspep[[6]]=rownames(cts)[cts[,2]==1]
+clstspep[[7]]=rownames(cts)[cts[,2]==4]
+clstspep[[8]]=rownames(cts)[cts[,2]==9]
+clstspep[[9]]=rownames(cts)[cts[,2]==3]
 
 clstprots=lapply(clstspep,function(i) pepiused[i])
-GBMup=sort(unlist(clstprots[c(5,8,9)]))
-GBMdown=sort(unlist(clstprots[c(2,4,6)]))
+clstprots[[7]]=clstprots[[7]][-4]
+x=table(unlist(clstprots))
+y=table(pepinfo$V1)
+xy=cbind(y[names(x)],x)
+xy[,1]=xy[,1]-xy[,2]
+z=colsums(xy[7:9,])
+xy[7,]=z
+rownames(xy)[7]="Env HTLV-1"
+xy=xy[-c(8,9),]
+chsqxy=chisq.test(xy, correct = T, simulate.p.value = T)
+chsqxy$stdres
+1-pnorm(chsqxy$stdres[,2])
+p.adjust(1-pnorm(chsqxy$stdres[,2]), method = "fdr")
+barplot(sort(chsqxy$stdres[,2]),las=2)
+#axis(1,at=c(seq_along(chsqxy$stdres[,2])),pos=-2.1, labels=rownames(xy)[order(chsqxy$stdres[,2])], las=2)
+xn=names(x)
+xt=sapply(xn, function(prot){
+  sapply(clstprots,function(cl){
+    sum(cl==prot)
+  })
+})
+chsqxt=chisq.test(xt, simulate.p.value = T)
 
-unqprots=table(pepiused)
-x=sapply(unqprots,function(x) x=0)
-gbmupt=table(GBMup)
-x[names(gbmupt)]=gbmupt
-gbmupt=x
-x=sapply(unqprots,function(x) x=0)
-gbmdnt=table(GBMdown)
-x[names(gbmdnt)]=gbmdnt
-gbmdnt=x
-ttltbl=cbind(unqprots-(gbmdnt+gbmupt),gbmupt,gbmdnt)
-xsqttltb=chisq.test(ttltbl, simulate.p.value = T)
-sort(xsqttltb$residuals[,2])
-sort(xsqttltb$residuals[,3])
-
-z=ttltbl[rowSums(ttltbl[,2:3])>0,]
+pnorm(t(chsqxt$stdres))
