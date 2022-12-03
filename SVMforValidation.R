@@ -1,4 +1,4 @@
-# Checks the model efficiency based on the leave on out validation and SVM
+# Checks the model efficiency based on the leave one out validation and SVM
 # both for dichotomous and 3-way comparison.The gamma parameter of the SVM is optimized.
 # Produces a confusion matrix and calculates accuracy, Mathew's Correlation 
 # Coefficient (MCC) and F1 criteria for the dichotomous case and accuracy for the 3-way.

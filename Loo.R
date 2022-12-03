@@ -1,7 +1,7 @@
-Loo=function(part, l=zsets3calls){
+Looloc=function(part, l=zsets3calls){
 require(parallel)
 x=seq_along(l)[((part-1)*11+1):(part*10+1)]
-cl=makeCluster(16)
+cl=makeCluster(4)
 clusterExport(cl, c("rfe", "BHgamma", "bhgamfix","connfix","dunnfix","vb10","dgnC","dgnG","dgnM","dgnf","l","x"), envir=environment())
 fs=parSapply(cl,x, function(i){
   m=vb10[l[[i]],-i]
