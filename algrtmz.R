@@ -168,7 +168,7 @@ dev.off()
 
 # IgM Reactivity Profiles ------- 
 #    of the lowest (TYR) and the highest (NY-ESO-1) biding self proteins
-# as well as some other
+#    as well as some other
 
 bindingProfile(n=59, filename="tyrosinase") 
 bindingProfile(n=3, filename="NYESO1") 
