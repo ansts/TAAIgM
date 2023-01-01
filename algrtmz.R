@@ -52,7 +52,7 @@ require(multcomp)
 require(Biostrings)
 library(lsmeans)
 require(Peptides)
-
+require(nlme)
 
 
 # Data Cleaning -----------------------------------------------------------
@@ -137,58 +137,34 @@ viral=c(2,4,9:18,20,25:32,37:39,42,45:47,49,52)
 
 load("shortNames")
 vb10ag=vb10[names(pepiused),]-mean(vb10[names(pepiused),])
+meanAg=aggregate(rowMeans(vb10ag), by=list(pepiused), "mean")
+meanAg=meanAg[order(meanAg$x),]
 vb10agL=melt(vb10ag)
-colnames(vb10agL)=c("Seq_","D_","Val")
-x=stri_extract_all(vb10agL$D, regex="(?<=_)\\w+" )
-vb10agL$D_=unlist(x)
+colnames(vb10agL)=c("Seq_","Pat_","Val")
+x=stri_extract_all(vb10agL$Pat_, regex="(?<=_)\\w+" )
+vb10agL=cbind(vb10agL,D_=unlist(x))
 x=pepiused[vb10agL$Seq_]
 vb10agL=cbind(vb10agL,Ag_=x)
 vb10agL$D_=as.factor(vb10agL$D_)
-vb10agL$Ag_=as.factor(vb10agL$Ag_)
-x=aggregate(vb10agL$Val, by=list(vb10agL$Ag_), "mean")
-x[which.min(abs(scale(x[,2]))),1]
+vb10agL$Pat_=as.factor(vb10agL$Pat_)
+vb10agL$Ag_=factor(vb10agL$Ag_, levels=meanAg$Group.1, ordered = T)
 
-Y=unique(vb10agL$Ag_)
-Aglm=t(sapply(Y, function(a){
-  x=vb10agL[vb10agL$Ag_==a,]
-  x=lm(data = x, Val~D_)
-  x=summary(x)
-  fv=x$fstatistic
-  p=pf(fv[1],fv[2],fv[3],lower.tail=F)
-  xeff=x$coefficients[,1]
-  names(xeff)=paste("Eff",names(xeff), sep="_")
-  x=x$coefficients[,4]
-  names(x)=paste("p.val",names(x), sep="_")
-  return(c(xeff[2:3],x[2:3],Overall.p=p))
-}))
-rownames(Aglm)=Y
-Aglm[,5]=p.adjust(Aglm[,5],method="BH")
+Aglm=lme(Val~D_*Ag_, random=~1|Pat_, data = vb10agL)
+res=lsmeans(Aglm, pairwise~D_|Ag_)
+reres=summary(res$contrasts)
+j=reres$p.value<0.1
+rres=data.frame(Contrast=as.character(reres$contrast[j]),Antigen=as.character(reres$Ag_[j]),Estimate=as.numeric(reres$estimate[j]),p.value=as.numeric(reres$p.value[j]))
+rres=rres[order(rres$Estimate),]
 sink(file="SigAgReact.txt")
-print(Aglm[Aglm[,5]<0.1,])
+  print(reres)
 sink()
 
-TuSqG=TukeySq(vb10agL, "GBM") 
-x=TuSqG$coefficients[,1]
-p=TuSqG$coefficients[,4]
+resAg=summary(lsmeans(Aglm,~D_*Ag_, random=~1|Pat_))
 
-table(Coeff=x>0,p=p<0.05, pepiused)
+pdf(file="resAg.pdf", width=10, height=50)
+  plot(resAg)
+dev.off()
 
-TuSqC=TukeySq(vb10agL, "cntr") 
-x=TuSqC$coefficients[,1]
-p=TuSqC$coefficients[,4]
-
-table(Coeff=x>0,p=p<0.05, pepiused)
-
-TuSqM=TukeySq(vb10agL, "meta") 
-x=TuSqM$coefficients[,1]
-p=TuSqM$coefficients[,4]
-
-table(Coeff=x>0,p=p<0.05, pepiused)
-
-vb10agL$Ag_=shortNames[vb10agL$Ag_]
-
-Daov=aov(data=vb10agL, Val~D_)
-TukeyHSD(Daov, "D_")
 
 # IgM Reactivity Profiles ------- 
 #    of the lowest (TYR) and the highest (NY-ESO-1) biding self proteins
@@ -199,5 +175,5 @@ bindingProfile(n=3, filename="NYESO1")
 bindingProfile(n=50, filename="erbB-2")
 bindingProfile(n=15, filename="HTLV1")
 bindingProfile(n=49, filename="endoHTLV1")
-HLA36ag=bindingProfile(n=24, filename="HLA_A36")
+HLA36ag=bindingNNProfile(n=24, filename="HLA_A36")
 
