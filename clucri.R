@@ -1,5 +1,5 @@
 
-# A funciton which measures the cluster separation using a composite clustering criterion 
+# A function which measures the cluster separation using a composite clustering criterion 
 # consisting of the best value selected among Dunn's or BHgamma criteria as well as negative Connectivity.
 # The criteria are transformed to compensate for their dependence on the dimensionality 
 # and to restrict them in the range between -1 and 1. The conversion functions dunnfix, connfix and bhgamfix 

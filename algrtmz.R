@@ -72,6 +72,8 @@ coln=paste(1:21,pnSet@phenoData@data$diag, sep="_")
 dgn=pnSet@phenoData@data$diag
 dgnf=as.double(as.factor(dgn))
 dgnG=dgn=="GBM"
+dgnM=dgn=="meta"
+dgnC=dgn=="cntr"
 pepts=pnSet@featureRange@elementMetadata@listData$peptide
 pepf=factor(pepts, levels = unique(pepts))
 v0=pnSet@assayData$exprs
@@ -91,11 +93,25 @@ vn=normalizeCyclicLoess(v1, iterations=1, method="affy")
 batch=c(rep(1,10),rep(2,11))
 mm=model.matrix(~as.factor(dgn))
 vb10=ComBat(vn, batch, mod=mm)
+pats=colnames(vb10)
 plot(rowMeans(vb10),rowSds(vb10), cex=0.3)
 pdf(file="vb10dotplots.pdf", width=10, height=10)
 rng=range(vb10)
 plot(as.data.frame(vb10),cex=0.1, pch=16, xlim=rng, ylim=rng)
 dev.off()
+save(vb10, file="vb10")
+save(list=c("pats","dgn","dgnf","dgnC","dgnG","dgnM"), file="ColnamesAndDiag")
+
+# blood group
+bgr=c(ez="0",gj="0",idmtr="0",id="A",ls="B",zs="A",gr="0",yt="0",rp="B",
+      lb="0",vs="A",ri="A",md="A",ai="0",dk="A",yk="B",he="0",nn="0",ab="AB",hs="0",jd="0")
+patnm=colnames(v0)
+patnm=unlist(stri_extract_all(patnm, regex="\\w+(?=_)"))
+bgr=bgr[patnm]
+BlGr=data.frame(A=grepl("A",bgr), B=grepl("B",bgr), N=grepl("0",bgr))
+rownames(BlGr)=names(bgr)
+save(list=c("sex","BlGr"), file="BloodGroupAndSex")
+
 
 # Biological information about the peptides - frames encompassing two different 
 # sequences are removed (they are the result of concatenating all protein sequences
@@ -111,6 +127,7 @@ pepinf=pepinfo[,1]
 names(pepinf)=pepinfo[,2]
 pepinf=pepinf[rownames(vb10)]
 pepiused=pepinf[!is.na(pepinf)]
+save(list=c("pep","pepinfo","pepi","pepiused"), file="pepbioinfo")
 
 # Correct inconsistencies in protein names
 
