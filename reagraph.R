@@ -12,14 +12,20 @@ require(limma)
 require(gplots)
 require(nlme)
 require(multcomp)
+require(Rfast)
+require(lsmeans)
+require(nlme)
+require(heatmap3)
+require(vioplot)
+require(ggplot2)
 
 require(irr)
 require(pROC)
 require(uwot)
-require(RColorBrewer)
+require(RColorBraewer)
 require(qualV)
 require(infotheo)
-require(ggplot2)
+
 require(rgl)
 require(corrplot)
 require(Peptides)
@@ -29,11 +35,13 @@ require(FactoMineR)
 require(riverplot)
 require(class)
 
-# require(statnet)
+
 
 load("IgJtrim")
 viral=c(2,4,9:18,20,21,26:35,41,42,45,46,48:50,52,55,60)
 vir=pepinfo$peptide[pepinfo$protein %in% pepi[viral]]
+palette(c("black","red","green","blue","yellow","cyan","magenta","gray75","gray35","dodgerblue2","firebrick4","darkolivegreen","lightcyan2","hotpink4","ivory3","gray90"))
+
 
 # Adjacency Matrix --------------------------------------------------------
 
@@ -111,8 +119,6 @@ components(Gvs)
 ccGvs=transitivity(Gvs, type=("localundirected"))
 ccGvs[is.na(ccGvs)]=0
 
-
-
 names(Jq4map)=names(V(Gvs))
 Jq4map[names(pepsigJq4map)]=pepsigJq4map
 
@@ -134,7 +140,8 @@ prtsn=as.factor(pp)
 prts=unlist(as.numeric(prtsn))
 prtlbl=levels(as.factor(pp))
 
-mx=vb10-min(vb10)+1
+base=c(vb10)[which(rank(vb10)==2)]-min(vb10)
+mx=vb10-min(vb10)+base
 
 Gvlets=graphlets(Gvs, rep(1,length(E(Gvs))))
 
@@ -161,43 +168,6 @@ Gvs=set_vertex_attr(Gvs, "GvsC", value =GvsC[names(V(Gvs))])
 Gvs=set_vertex_attr(Gvs, "MvsC", value =MvsC[names(V(Gvs))])
 Gvs=set_vertex_attr(Gvs, "Mean", value =rowMeans(vs10)[names(V(Gvs))])
 Gvs=set_vertex_attr(Gvs, "CV", value =rowSds(vb010[names(V(Gvs)),])/rowMeans(vb010)[names(V(Gvs))])
-
-virCluster=names(ego(Gvs,1,"DHILEPSIPWKSK")[[1]])
-for (p in virCluster){
-  plot(vs10[p,order(dgnf)], ty="l", ylim=c(-3,4))
-  par(new=T)
-}
-par(new=F)
-
-secCluster=names(ego(Gvs,1,"GTLVALVGLFVLLAF")[[1]])
-for (p in secCluster){
-  plot(vs10[p,order(dgnf)], ty="l", ylim=c(-3,4))
-  par(new=T)
-}
-par(new=F)
-
-
-backCluster=names(ego(Gvs,1,"GLCKAIQEQCCFLN")[[1]])
-for (p in backCluster){
-  plot(vs10[p,order(dgnf)], ty="l", ylim=c(-3,4))
-  par(new=T)
-}
-par(new=F)
-
-back2Cluster=names(ego(Gvs,1,"NDVCAQVHPQKVTKF")[[1]])
-for (p in back2Cluster){
-  plot(vs10[p,order(dgnf)], ty="l", ylim=c(-3,4))
-  par(new=T)
-}
-par(new=F)
-
-forCliquer=names(ego(Gvs,1,"VPVSEPVPEPEPEPE")[[1]])
-for (p in forCliquer){
-  plot(vs10[p,order(dgnf)], ty="l", ylim=c(-3,4))
-  par(new=T)
-}
-par(new=F)
-
 
 # NN Stats of Diagnosis ---------------------------------------------------
 cl=makeCluster(15)
@@ -234,14 +204,6 @@ stopCluster(cl)
 rownames(NNdiaov)=pep
 NNdiaov[,3:4]=apply(NNdiaov[,3:4],2,p.adjust,method="BH",n=3*length(NNdiaov[,4]))
 
-for (j in 1:3) {
-  NNdiaov[(NNdiaov[,j+3]>0.001),j]=0
-}
-
-Gvs=set_vertex_attr(Gvs, "GvsCkw", value =NNdiaov[,1])
-Gvs=set_vertex_attr(Gvs, "MvsCkw", value =NNdiaov[,2])
-write.graph(Gvs, format = "graphml", file="Gvs.graphml")
-
 mx=vb10-min(vb10)+1
 NNdimn=t(sapply(pep,function(p) {
   pp=names(ego(Gvs,1, p)[[1]])
@@ -255,83 +217,37 @@ NNdimn=t(sapply(pep,function(p) {
 }))
 colnames(NNdimn)=c("2-1", "3-1","3-2")
 
-NNdicmb=NNdimn*(abs(NNdimn)>0.1)*(NNdiaov[,4:6]<0.001)
-Gvs=set_vertex_attr(Gvs, "Gvscmb", value =NNdicmb[,1])
-Gvs=set_vertex_attr(Gvs, "Mvscmb", value =NNdicmb[,2])
-write.graph(Gvs, format = "graphml", file="Gvs.graphml")
 
-table(cut(NNdicmb[,1], c(-1e6,-1e-6,1e-6,1e6), labels=c("Lost","None","Gained")))
-table(cut(NNdicmb[,2], c(-1e6,-1e-6,1e-6,1e6), labels=c("Lost","None","Gained")))
-table(cut(NNdicmb[,3], c(-1e6,-1e-6,1e-6,1e6), labels=c("Meta","None","GBM")))
-sum(NNdicmb[,1]!=0)/nrow(NNdicmb)
-sum(NNdicmb[,2]!=0)/nrow(NNdicmb)
-sum(NNdicmb[,3]!=0)/nrow(NNdicmb)
+# Simulation of profile diversity -----------------------------------------
 
+prfls=t(sapply(pep,function(p){
+  x=names(ego(Gvs,1,p)[[1]])
+  m=mx[x,]
+  if (length(x)>1) (colMeans(m)>mean(m))*1 else (m>mean(m))*1
+}))
 
-Zmod(Gvs, 1+(NNdicmb[,1]!=0))
-Zmod(Gvs, 1+(NNdicmb[,2]!=0))
-Zmod(Gvs, 1+(NNdicmb[,3]!=0))
-Zmod(Gvs, 1+(NNdicmb[,1]>0))
-Zmod(Gvs, 1+(NNdicmb[,2]>0))
-Zmod(Gvs, 1+(NNdicmb[,3]>0))
-Zmod(Gvs, 1+(NNdicmb[,1]<0))
-Zmod(Gvs, 1+(NNdicmb[,2]<0))
-Zmod(Gvs, 1+(NNdicmb[,3]<0))
+cl=makeCluster(14)
+clusterExport(cl,"Groupings")
+ps=t(pbapply(prfls,1,function(l){
+  apply(Groupings, 2,function(g){
+    chisq.test(l,g, simulate.p.value=T)$p.value
+  })
+},cl=cl))
+stopCluster(cl)
 
-Zass(Gvs, 1+(NNdicmb[,1]!=0))
-Zass(Gvs, 1+(NNdicmb[,2]!=0))
-Zass(Gvs, 1+(NNdicmb[,3]!=0))
-Zass(Gvs, 1+(NNdicmb[,1]>0))
-Zass(Gvs, 1+(NNdicmb[,2]>0))
-Zass(Gvs, 1+(NNdicmb[,3]>0))
-Zass(Gvs, 1+(NNdicmb[,1]<0))
-Zass(Gvs, 1+(NNdicmb[,2]<0))
-Zass(Gvs, 1+(NNdicmb[,3]<0))
-
+ps=apply(ps,2,p.adjust)
 
 # Cliques -----------------------------------------------------------------
 
-
 clqGvs=max_cliques(Gvs, min=3) 
-tclql=table(lengths(clqGvs))
+tclql=table(lengths(clqGvs)) 
 vgrep=Vectorize(grep, vectorize.args = "pattern")
 ls=as.numeric(names(tclql))
-
-mx=vb10-min(vb10)+1
-
-ij=cut(seq_along(clqGvs), 100, labels=F)
-cl=makeCluster(15)
-clusterExport(cl, c("clqGvs","ij", "mx","dgnf"))
-
-diaclqall=pblapply(1:100, function(i){
-  jj=which(ij==i)
-  res=t(sapply(jj, function(j){
-    cq=clqGvs[[j]]
-    cq=names(cq)
-    y=c(mx[cq,])
-    x=as.factor(rep(dgnf,each=length(cq)))
-    data.frame(Stat=kruskal.test(y~x)$statistic, P=kruskal.test(y~x)$p.value)
-  }))
-  return(res)
-}, cl=cl)
-stopCluster(cl)
-
-x=c()
-for (i in 1:100){
-  x=rbind(x,diaclqall[[i]])
-}
-
-diaclqall=as.data.frame(apply(x,2,unlist))
-
-diaclqall$P=p.adjust(diaclqall$P, method = "BH")
-
-posclqall=clqGvs[diaclqall$P<0.05]
-tposclqall=table(lengths(posclqall))
 
 clqord=clqGvs[order(lengths(clqGvs))]
 x=list()
 xp=c()
-for (i in seq_along(clqGvs)) {
+for (i in seq_along(clqord)) {
   y=names(clqord[[i]])
   n=sum(y %in% xp)
   if (n==0) x[[i]]=y else x[[i]]=c()
@@ -353,9 +269,335 @@ hist(res[,1], xlim=range(res))
 par(new=T)
 hist(res[,2], xlim=range(res), col=2)
 
-hist(dGvs[uniclq])
-pepbycl=table(unlist(lapply(clqGvs, names)))
+hist(log10(dGvs[unique(unlist(uniclq))]+0.5), xlim=range(log10(dGvs+0.5)))
+par(new=T)
+hist(log10(dGvs+0.5), col=2, xlim=range(log10(dGvs+0.5)))
+
+bigclq=unlist(lapply(clqord[lengths(clqord)>20], function(clq) names(clq)))
+tbigclq=table(bigclq)
+smallclq=unlist(lapply(clqord[lengths(clqord)<5], function(clq) names(clq)))
+tsmallclq=table(smallclq)
+length(intersect(names(tbigclq), names(tsmallclq)))
+length(tbigclq)
+length(tsmallclq)
+sum(names(tbigclq) %in% vir)
+sum(names(tsmallclq) %in% vir)
+tbigclq[names(tbigclq) %in% vir]
+chisq.posthoc.test(table(names(tbigclq) %in% vir,tbigclq>100), simulate.p.value=T)
+X=lapply(clqord, names)
+X=melt(X)
+X=cbind(X, idio=q7ppp[X$value])
+i7=aggregate(X$idio, by=list(X$L1), "mean")
+
+bsi7=sapply(1:38, function(l){
+  summary(sapply(1:5000, function(i){
+    p=sample(pep,l)
+    mean(q7ppp[p])
+  }))
+})
+y=log10(i7$x+0.5)
+vioplot(y~lengths(clqord)[i7$Group.1], ylim=range(y), xlab = "Clique size", 
+        ylab="Log10(Mean # idiotope hits + 0.5) ")
+par(new=T)
+plot(3:38,log10(bsi7[2,3:38]+0.5), xlim=c(2.5,38.5), ylim=range(y), ty="l", 
+     lwd=2, col=3, xlab="", ylab="", xaxt="n")
+par(new=T)
+plot(3:38,log10(bsi7[3,3:38]+0.5), xlim=c(2.5,38.5), ylim=range(y), ty="l", 
+     lwd=2, col=2, xlab="", ylab="", xaxt="n")
+par(new=T)
+plot(3:38,log10(bsi7[5,3:38]+0.5), xlim=c(2.5,38.5), ylim=range(y), ty="l", 
+     lwd=2, col=3, xlab="", ylab="", xaxt="n")
+
+log10(median(q7ppp[names(tbigclq)])+0.5)
+log10(median(q7ppp[names(tsmallclq)])+0.5)
+chisq.posthoc.test(table(as.numeric(tbigclq)>20,q7ppp[names(tbigclq)]>0))
+chisq.posthoc.test(table(as.numeric(tsmallclq)>3,q7ppp[names(tsmallclq)]>0))
+
+pepbycl=table(unlist(lapply(clqord, names)))
 pepbyclpo=table(unlist(lapply(posclqall, names)))
+
+cl=makeCluster(18)
+clusterExport(cl,c("vs10", "dgnf", "clucri","connfix","dunnfix","bhgamfix","BHgamma"))
+j=sample(seq_along(clqord))
+clqvirclucr=pbsapply(clqord[j], function(cq){
+  cq=names(cq)
+  l=length(cq)
+  if (l==3) {
+    x=clucri(vs10[cq,], dgnf)
+  }
+  else {
+    cm=combn(l,3)
+    n=ncol(cm)
+    if (n>100) j=sample(1:n,100) else j=1:n
+    x=mean(apply(cm[,j],2,function(i){
+      clucri(vs10[cq[i],], dgnf)
+    }))
+  }
+},cl=cl)
+stopCluster(cl)
+
+X=lapply(clqord, names)
+X=melt(X)
+ij=table(X$L1)
+X=cbind(X,L=ij[X$L1])
+X=X[,-3]
+X=aggregate(X$L.Freq, by=list(X$value),"max")
+Xclucr=sapply(3:20, function(n){
+  clucri(vs10[X$Group.1[X$x==n],], dgnf)
+})
+plot(Xclucr, ty="b")
+y=cut(X$x,c(0,3,4,5,6,7,8,9,10,12,15,20,24,38), labels=F)
+
+xvir=sapply(clqord[j], function(cq) {
+  cq=names(cq)
+  sum(cq %in% vir)/length(cq)
+})
+
+xvirn=sapply(clqord[j], function(cq) {
+  cq=names(cq)
+  sum(cq %in% vir)
+})
+
+clqvirclucr=cbind(Crit=clqvirclucr, L=lengths(clqord[j]), Vir=xvir, Virn=xvirn, Idiotype=)
+boxplot(data=clqvirclucr, Crit~L, notch=T, cex=0.3)
+xv=cut(log10(clqvirclucr[,3]+0.001),9, labels=FALSE)
+x=cut(clqvirclucr[,1],10,labels=F)
+vioplot(clqvirclucr[,3]~x)
+plot3d(clqvirclucr[,1:3])
+rglwidget()
+plot3d(clqvirclucr[,c(1,2,4)])
+rglwidget()
+
+jj=cut(clqvirclucr[,3], 3, labels=F)
+for (i in 1:3) {
+  plot(clqvirclucr[jj==i,c(2,1)], pch=16, xlim=c(3,38), ylim=c(-10,6),col=rgb(0.5,0.5,0.5,0.5), main=i)
+}
+
+critqnt=quantile(clqvirclucr[,1], c(0.33,0.67))
+x=aggregate(clqvirclucr[,3], by=list(clqvirclucr[,2]), "mean")
+x33=aggregate(clqvirclucr[clqvirclucr[,1]<critqnt[1],3], by=list(clqvirclucr[clqvirclucr[,1]<critqnt[1],2]), "mean")
+x67=aggregate(clqvirclucr[clqvirclucr[,1]>critqnt[2],3], by=list(clqvirclucr[clqvirclucr[,1]>critqnt[2],2]), "mean")
+
+plot(x, xlab="Crossreactivity clique size", ylab="Mean proportion of viral epitopes", xlim=c(3,38), ylim=range(x[,2]), ty="b")
+par(new=T)
+plot(x33, xlab="", ylab="", xlim=c(3,38), ylim=range(x[,2]), col=4, ty="l")
+par(new=T)
+plot(x67, xlab="", ylab="", xlim=c(3,38), ylim=range(x[,2]), col=2, ty="l")
+lines(c(3,38),c(mean(x[,2]),mean(x[,2])))
+legend("bottomright", legend=c("All max cliques >2","1st Tertile clustering coeff.","3rd Tertile clustering coeff."), lwd=1, col=c(1,4,2), bty="n")
+
+lmvirclq=lm(Crit~Vir*L, data = as.data.frame(clqvirclucr))
+summary(lmvirclq)
+
+x=aggregate(clqvirclucr[,3], by=list(clqvirclucr[,2]), "mean")
+y=aggregate(clqvirclucr[,1], by=list(clqvirclucr[,2]), "mean")
+xy=cbind(x,y$x)
+colnames(xy)=c("L","V","C")
+summary(lm(data=xy, C~V*L))
+summary(lm(data=xy,V~L))
+
+Gvsnovir=induced.subgraph(Gvs, vGvs[!(vGvs %in% vir)])
+clqsnovir=max_cliques(Gvsnovir, min=3)
+
+cl=makeCluster(15)
+clusterExport(cl, c("Gvs","vGvs","vir"))
+clusterEvalQ(cl, require(igraph))
+clqGnovirBS=t(pbsapply(1:1000, function(i){
+  print(i)
+  tb0=rep(0,36)
+  names(tb0)=3:38
+  x=sample(vGvs,length(vir))
+  g=induced_subgraph(Gvs, vGvs[!(vGvs %in% x)])
+  clq=max_cliques(g, min=3)
+  tb=table(lengths(clq))
+  tb0[names(tb)]=tb
+  return(tb0)
+}, cl=cl))
+stopCluster(cl)
+clqGnovirBS=sweep(clqGnovirBS,1,rowsums(clqGnovirBS),"/")
+
+write_graph(Gvsnovir, format = "graphml", file="Gvsnovir.graphml")
+clqsnovirL=lengths(clqsnovir)
+
+tbvir=table(clqsnovirL)/length(clqsnovirL)
+boxplot(clqGnovirBS, ylim=range(tbvir), range=1, outline=F, xlab="Clique size", ylab="Probability")
+par(new=T)
+plot(tclql/sum(tclql), ty="l", col=3, ylim=range(tbvir), xlim=c(2.5,38.5), xlab="", ylab="")
+par(new=T)
+plot(tbvir, ty="l", col=2, xlim=c(2.5,38.5), ylim=range(tbvir), xlab="", ylab="")
+legend("topright", legend=c("Entire graph","The graph without viral epitopes","Bootstrap of subgraph"), bty="n", lwd=c(1,1,10),  col=c(3,2,8), cex = 1)
+
+virb=vir[vir %in% names(tbigclq)]
+virs=vir[vir %in% names(tsmallclq)]
+bigsmallclq=data.frame(`Log(N)`=c(log10(tbigclq[!(names(tbigclq) %in% vir)]), log10(tbigclq[virb]),
+                    log10(tsmallclq[!(names(tsmallclq) %in% vir)]), log10(tsmallclq[virs])),
+                  Size=c(rep("Big", length(tbigclq[!(names(tbigclq) %in% virb)])+ length(tbigclq[virb])),
+                         rep("Small", length(tsmallclq[!(names(tsmallclq) %in% vir)])+length(tsmallclq[virs]))),
+                  Self=c(rep("Self", length(tbigclq[!(names(tbigclq) %in% virb)])),
+                         rep("Vir", length(tbigclq[virb])),
+                         rep("Self",length(tsmallclq[!(names(tsmallclq) %in% vir)])),
+                         rep("Vir",length(tsmallclq[virs]))))
+boxplot(data=bigsmallclq, Log.N.~Self*Size, notch=T)
+summary(lm(data=bigsmallclq, Log.N.~Self*Size))
+pepsmallbig=data.frame(Pep=c(names(tbigclq[!(names(tbigclq) %in% vir)]),names(tbigclq[virb]),
+                             names(tsmallclq[!(names(tsmallclq) %in% vir)]),names(tsmallclq[virs])),
+                       Size=c(rep("Big", length(tbigclq[!(names(tbigclq) %in% virb)])+ length(tbigclq[virb])),
+                              rep("Small", length(tsmallclq[!(names(tsmallclq) %in% vir)])+length(tsmallclq[virs]))),
+                       Self=c(rep("Self", length(tbigclq[!(names(tbigclq) %in% virb)])),
+                              rep("Vir", length(tbigclq[virb])),
+                              rep("Self",length(tsmallclq[!(names(tsmallclq) %in% vir)])),
+                              rep("Vir",length(tsmallclq[virs]))))
+chisq.posthoc.test(table(pepsmallbig$Size,pepsmallbig$Self), simulate.p.value=T)
+bigclqpep=names(tbigclq)
+smallclqpep=names(tsmallclq)
+
+# Entropies
+
+bcqpp=sapply(bigclqpep,function(p) unlist(strsplit(p, split="")))
+scqpp=sapply(smallclqpep,function(p) unlist(strsplit(p, split="")))
+vbcqpp=sapply(virb,function(p) unlist(strsplit(p, split="")))
+vscqpp=sapply(virs,function(p) unlist(strsplit(p, split="")))
+
+bcqppent=sapply(bcqpp, function(p) seqient(seqdef(t(p)), norm=F, base = 2))
+scqppent=sapply(scqpp, function(p) seqient(seqdef(t(p)), norm=F, base = 2))
+vbcqppent=sapply(vbcqpp, function(p) seqient(seqdef(t(p)), norm=F, base = 2))
+vscqppent=sapply(vscqpp, function(p) seqient(seqdef(t(p)), norm=F, base = 2))
+
+ents=list(BigCliques=bcqppent,SmallCliques=scqppent,Viral_BClq=vbcqppent,Viral_SClq=vscqppent)
+boxplot(ents, notch = T)
+ents=melt(ents)
+colnames(ents)=c("value","Epitope_Set")
+ggplot(data=ents,aes(x = Epitope_Set, y = value))+
+  geom_violin(trim=T,fill='#A0A090',color="darkgreen") + 
+  theme_classic()+
+  stat_summary(fun = "mean",
+               geom = "crossbar",
+               width=0.5,
+               color = "black")+
+  ylab("Entropy [bits]")
+ents$Epitope_Set=as.factor(ents$Epitope_Set)
+entslm=lme(data=ents, value~Epitope_Set, random = ~1|value)
+resentslm=lsmeans(entslm, pairwise~Epitope_Set)
+resentslm=summary(resentslm)
+
+xs=sapply(smallclqpep,as.AAbin)
+xb=sapply(bigclqpep,as.AAbin)
+xsd=kdistance(xs, k=4)
+xbd=kdistance(xb, k=4)
+
+xsdc=cut(xsd, c(-1,0.05,0.1,0.2,0.4,0.5,0.6,0.7,1), labels=F)
+xbdc=cut(xbd, c(-1,0.05,0.1,0.2,0.4,0.5,0.6,0.7,1), labels=F)
+txdc=cbind(small=table(xsdc), big=table(xbdc))
+
+chisq.posthoc.test(txdc, simulate.p.value = T)
+
+plot(log10(sweep(txdc,2,colSums(txdc),"/")), xlim=c(-4,0), ylim=c(-4,0))
+
+
+
+#################
+
+x=names(pepiused[pepiused %in% pepi[16:17]])
+xbcq=intersect(x,bigclqpep)
+y=length(bigclqpep)
+tbxclq=rbind(c(length(pep)-length(x),length(x)),c(y-length(xbcq),length(xbcq)))
+chsqtxbclq=chisq.test(tbxclq, simulate.p.value=T)
+chsqtxbclq$stdres
+pepbyclqtb=data.frame(Prots=pepiused[pep], Nclq=pepbycl[pep], Vir=pep %in% vir)
+pepbyclqtb=pepbyclqtb[,-2]
+pepbyclqtb$Prots[is.na(pepbyclqtb$Prots)]="Linker"
+pepbyclqtb$Nclq.Freq[is.na(pepbyclqtb$Nclq.Freq)]=0
+x=cut(pepbyclqtb$Nclq.Freq, c(-1,5,21,1e6), labels=F)
+pepbyclqtb=data.frame(pepbyclqtb,NclqLT=x)
+rownames(pepbyclqtb)=pep
+summary(lm(data=pepbyclqtb, Nclq.Freq~Vir))
+chisq.posthoc.test(table(pepbyclqtb$Virs,pepbyclqtb$NclqLT.1), simulate.p.value=T)
+
+y=aggregate(data=pepbyclqtb, pep~Prots*NclqLT, "length")
+y=dcast(data=y, Prots~NclqLT)
+y[is.na(y)]=0
+rownames(y)=y$Prots
+y=y[,-1]
+yvir=y[pepi[viral],]
+virus=pepi[viral]
+virs=c("EBV","EBV","HPV","HPV","HPV","HPV","HPV","HPV","EBV","HTLV","HTLV","EBV","HBV","KSHV","HPV","HPV","HPV","HPV","KSHV","EBV","HPV","Hp","HTLV","HPV","HBV","HPV","HTLV","EBV","KSHV","HTLV")
+names(virs)=virus
+virtab=aggregate(yvir, by=list(virs[rownames(yvir)]),"sum")
+rownames(virtab)=virtab$Group.1
+virtab=virtab[,-1]
+chisq.posthoc.test(virtab, simulate.p.value=T)
+pepbyclqtb=data.frame(pepbyclqtb,Virs=virs[pepbyclqtb$Prots])
+pepbyclqtb$Virs[is.na(pepbyclqtb$Virs)]="self"
+pepbyclqtb$Virs=as.factor(pepbyclqtb$Virs)
+pepbyclqtb$Virs=relevel(pepbyclqtb$Virs,"HTLV")
+virlm=lm(data=pepbyclqtb, subset = Vir==T, Nclq.Freq~Virs)
+summary(virlm)
+
+seqtoFASTA(bigclqpep, "bigclq.txt")
+
+eiGvs=eigen_centrality(Gvs, directed = F,weights=NA)
+plot(log10(pepbyclqtb[vGvs,2]+0.5)+rnorm(length(dGvs),0,0.3), log10(eiGvs$vector+min(eiGvs$vector)/2), pch=16, cex=0.6,col=rgb(0,0,0,0.3))
+x=log10(as.numeric(unlist(eiGvs$vector))+1e-11)
+Gvs=set.vertex.attribute(Gvs, "EigenCentr", value=x)
+write.graph(Gvs, format = "graphml", file="Gvs.graphml")
+
+x=names(tbigclq)
+y=names(tsmallclq)
+clqsizeGrps=data.frame(melt(vs10),
+                       apply(Groupings,2,function(clm) as.factor(rep(clm, each=nrow(vs10)))),
+                       BigSmall=rep((pep %in% y)+(pep %in% x)*2,21), Viral=as.factor(1+(pep %in% vir)))
+clqsizeGrps$BigSmall[clqsizeGrps$BigSmall>1]=5-clqsizeGrps$BigSmall[clqsizeGrps$BigSmall>1]
+clqsizeGrps$BigSmall=as.factor(clqsizeGrps$BigSmall)
+colnames(clqsizeGrps)[1:2]=c("Seq","Pat")
+
+AclqszVir=lme(data=clqsizeGrps, value~A*Viral*BigSmall,random=~1|Pat)
+resAClqsV=lsmeans(AclqszVir, pairwise~A*Viral|BigSmall)
+resAClqsV=summary(resAClqsV)
+
+X=aggregate(clqsizeGrps$value,by=list(clqsizeGrps[,2],clqsizeGrps[,4],clqsizeGrps[,5],
+                                      clqsizeGrps[,6],clqsizeGrps[,7],clqsizeGrps[,8],
+                                      clqsizeGrps[,9],clqsizeGrps[,10],clqsizeGrps[,11],
+                                      clqsizeGrps[,12]), "mean")
+colnames(X)[2:10]=colnames(clqsizeGrps)[4:12]
+colnames(X)[11]="Reactivity"
+for (i in 2:10) X[,i]=as.factor(X[,i])
+
+#Fr0=as.factor(clqsizeGrps$BigSmall %in% c("2","3")+1)
+Fr0=as.factor((clqsizeGrps$BigSmall==1)+1)
+AclqszVir=lme(data=clqsizeGrps, value~A*Viral*Fr0,random=~1|Pat)
+resAClqsV=lsmeans(AclqszVir, pairwise~A*Viral|Fr0)
+resAClqsV=summary(resAClqsV)
+BclqszVir=lme(data=clqsizeGrps, value~B*Viral*Fr0,random=~1|Pat)
+resBClqsV=lsmeans(BclqszVir, pairwise~B*Viral|Fr0)
+resBClqsV=summary(resBClqsV)
+
+#Fr=as.factor(X$BigSmall %in% c("2","3")+1)
+Fr=as.factor((X$BigSmall=="2")+1)
+Groups=as.factor(apply(X[,c(2,10)],1,function(x){
+  if (x[1]) A="A" else A="nonA"
+  if (x[2]==2) V="Viral" else V="Self"
+  paste(A,V,sep="_")
+}))
+Xi=cbind(X[Fr==2,],Groups=Groups[Fr==2])
+ggplot(data=Xi,aes(x = Groups, y = Reactivity))+
+  geom_violin(trim=T,fill='#A0A090',color="darkgreen") + 
+  theme_classic()+
+  stat_summary(fun = "mean",
+               geom = "crossbar",
+               width=0.5,
+               color = "black")+
+  ggtitle("Big cliques")+
+  ylab("Reactivity (a.u.)")
+
+
+# Big Cliques Viral Subgraph ----------------------------------------------
+
+x=unique(unlist(sapply(ego(Gvs, 1, names(tbigclq)),names)))
+Gbclvir=induced_subgraph(Gvs, x)
+vGbclvir=names(V(Gbclvir))
+Gbclvir=set_vertex_attr(Gbclvir,"Viral",value=(vGbclvir %in% vir)+1)
+Gbclvir=set_vertex_attr(Gbclvir,"BigCl_core",value=(vGbclvir %in% names(tbigclq))+1)
+write.graph(Gbclvir, format = "graphml", file="Gbclvir.graphml")
 
 
 # Cliques 2 ---------------------------------------------------------------
@@ -365,15 +607,12 @@ mx=vb10-min(vb10)+1
 
 diaclq=as.data.frame(t(sapply(clqGvs10, function(cq){
   cq=names(cq)
-  y=c(mx[cq,])
-  x=as.factor(rep(dgnf,each=length(cq)))
-  data.frame(Stat=kruskal.test(y~x)$statistic, P=kruskal.test(y~x)$p.value)
+  y=colMeans(mx[cq,])
+  c(Stat=kruskal.test(y~dgnf)$statistic, P=kruskal.test(y~dgnf)$p.value)
 })))
 
 diaclq$P=p.adjust(diaclq$P, method = "BH")
 
-posclq=clqGvs10[diaclq$P<0.1]
-tposclq=table(lengths(posclq))
 
 barplot(tclql, xlab= "Clique Size", ylab="N", yaxt="n", xaxt="n")
 axis(1, cex.axis=0.75, at=(0:35)*1.2+0.7, labels=3:38, las=2)
@@ -382,137 +621,328 @@ barplot(tposclqall, xlab= "Clique Size", ylab="N", yaxt="n", xaxt="n")
 axis(1, cex.axis=0.75, at=(0:35)*1.2+0.7, labels=3:38, las=2)
 axis(2, cex.axis=0.75)
 
-barplot(tposclqall/tclql[1:length(tposclqall)], 
-        xlab= "Clique Size", ylab="Proprtion with DE in Diagnoses", yaxt="n", xaxt="n")
-axis(1, cex.axis=0.75, at=(0:30)*1.2+0.7, labels=3:33, las=2)
-axis(2, cex.axis=0.75)
+N=seq_along(mx[,1])
+cl=makeCluster(15)
+clusterExport(cl, c("mx","dgnf","clucri","connfix","dunnfix","bhgamfix","BHgamma","N"), envir = environment())
+bsx=pblapply(3:10, function(n){
+  sapply(1:10000,function(i){
+    bscq=sample(N,n)
+    clucri(mx[bscq,],dgnf)
+  })
+},cl=cl)
+stopCluster(cl)
+names(bsx)=3:10
 
-clucriposcl=sapply(posclq, function(x) clucri(vs10[x,], dgnf))
-boxplot(clucriposcl~lengths(posclq), notch=T)
+cl=makeCluster(15)
+names(clqGvs10)=seq_along(clqGvs10)
+nY=names(clqGvs10)
+nY=sample(nY)
+clusterExport(cl, c("mx","dgnf","clucri","connfix","dunnfix","bhgamfix","BHgamma","clqGvs10"), envir = environment())
+clucri3posclq=t(pbsapply(nY, function(ni){
+    clq=clqGvs10[[ni]]
+    x=names(clq)
+    cc=clucri(mx[x,], dgnf)
+    return(c(length(x),cc))
+}, cl=cl))
+stopCluster(cl)
 
-proct=proc.time()
-clucri3posclq=sapply(seq_along(posclq), function(i){
-  if ((i %% 1000)==0) {
-    print(i)
-    print(proc.time()-proct)
-  }
-  x=posclq[[i]]
-  x=names(x)
-  ij=combn(length(x),3)
-  median(apply(ij,2,function(j) clucri(vs10[x[j],], dgnf)))
-})
-boxplot(clucri3posclq~lengths(posclq), notch=T)
-
-x=lapply(posclq, names)
-x=sapply(x, function(y){
-  cbind(seq=y,n=as.numeric(length(y)))
-})
-x0=c()
-for (l in x){
-  x0=rbind(x0,l)
-}
-x0=as.data.frame(x0)
-x0[,2]=as.numeric(x0[,2])
-x=aggregate(x0[,1], by=list(x0[,2]), function(y) list(unique(y)))
-clcrposclbysize=sapply(seq_along(x$x), function(i){
-  l=x$x[[i]]
-  res=t(sapply(1:1000,function(j){
-    y=sample(l,40)
-    print(c(i,j))
-    yr=clucri(vs10[y,], dgnf)
-    cbind(Crit=yr, D=mean(log10(dGvs[y])), L=x$Group.1[i])
-  }))
-  return(res)
-})
-
-
-
-x0=c()
-for (clm in 1:8){
-  y=clcrposclbysize[,clm]
-  y=cbind(y[1:1000],y[1001:2000], y[2001:3000])
+crclcr=lapply(3:10,function(i) ecdf(bsx[[as.character(i)]]))
   
-  x0=rbind(x0,y)
-}
-
-clqposBSclcrXD_ClqSz=x0
-z=aggregate(clqposBSclcrXD_ClqSz[,2], by=list(clqposBSclcrXD_ClqSz[,3]), "mean")[,2]
-z=rep(z, each=1000)
-boxplot(clqposBSclcrXD_ClqSz[,1]~clqposBSclcrXD_ClqSz[,3], notch=T, xlab="Clique Size", ylab="Clustering Criterion")
-boxplot(clqposBSclcrXD_ClqSz[,2]~clqposBSclcrXD_ClqSz[,3], notch=T, xlab="Clique Size", ylab="Mean Log(Degree)")
-cpl3=colorRampPalette(c("#00000080","#0000F080","#00C00980","#00FF0080","#FFFF0080","#FF000080"), alpha=T)
-for(i in x$Group.1){
-  plot(clqposBSclcrXD_ClqSz[clqposBSclcrXD_ClqSz[,3]==i,2],
-       clqposBSclcrXD_ClqSz[clqposBSclcrXD_ClqSz[,3]==i,1], 
-       col=cpl3(10)[i], pch=16, cex=0.3,
-       xlim=range(clqposBSclcrXD_ClqSz[,2]),
-       ylim=range(clqposBSclcrXD_ClqSz[,1]))
-  #xy=lm(clqposBSclcrXD_ClqSz[clqposBSclcrXD_ClqSz[,3]==i,1]~clqposBSclcrXD_ClqSz[clqposBSclcrXD_ClqSz[,3]==i,2])
-  #abline(xy, col=i)
-  par(new=T)
-}
-par(new=F)
-
-plot()
-
-summary(lm(clqposBSclcrXD_ClqSz[,1]~clqposBSclcrXD_ClqSz[,2]+clqposBSclcrXD_ClqSz[,3]))
-
-cor(x[,1],clcrposclbysize[,2])
-
-# Diagnosis clustering correlates inversely with the log degree of the peptides.
-# It does not dependent on the clique size independent of the degree.
-# Clique size correlates, of course, very strongly with the mean log degree. 
-
-
-callsposclq=unique(names(unlist(posclq)))
-dClq=sapply(clqGvs10, function(cq){
-  sum(dGvs[names(cq)])-length(cq)
+j=apply(clucri3posclq,1,function(l) {
+  i=l[1]-2
+  print(i)
+  F=crclcr[[i]]
+  F(l[2])>0.99
 })
-diaclq=cbind(diaclq, D=dClq)
 
-x1=log10(unlist(diaclq$Stat))
-x2=log10(unlist(diaclq$D)+0.5)
-y=data.frame(St=x1, D=x2)
-summary(lm(data=y, log10(St+0.5)~D))
+selposclq=clucri3posclq[j,]
+colnames(selposclq)=c("N","Crit")
+posclq=rownames(selposclq)
+posclqpep=unique(unlist(sapply(clqGvs10[posclq],names)))
+  
+  #boxplot(clucri3posclq[,1]~clucri3posclq[,2], notch=T)
+  
+  dgnGf=dgnG&(sex=="F")
+  dgnGm=dgnG&(sex=="M")
+  dgnfm=dgnf
+  dgnfm[dgnGf]=4
 
-diaclq=cbind(diaclq, ClqSz=lengths(clqGvs10))
+selFposclqp=Loolocal0(posclqpep,mx)
+plotMDS(vs10[selFposclqp,], col=dgnf, pch=16)
 
-boxplot(data=diaclq,log10(unlist(Stat))~ClqSz)
+length(intersect(selFposclqp,names(clqFTb)))/length(selFposclqp)
+length(intersect(selFposclqp,callsclqf))/length(selFposclqp)
 
-x=dGvs[callsposclq]
-x1=names(x)[x<25]
-#cls=rfe(vs10[x1, ], dgnf)
-cls=Loolocal0(x1,vs10)
-#x2=rownames(cls[[1]])
-x2=cls
-x3=names(x)[!(names(x) %in% x1)]
+psclq=sapply(clqGvs10[posclq],names)
+dmxposclq=sapply(psclq[order(lengths(psclq))], function(cl1){
+            sapply(psclq[order(lengths(psclq))], function(cl2){
+              as.numeric(length(intersect(cl1,cl2)))
+            })
+})
 
-x0=c(x3, x1[!(x1 %in% x2)])
-best=c()
-maxcr=0
-repeat {
-  cri=0
-  p0=c()
-  for (p in x0){
-    x4=c(x2,p)
-    cr=clucri(mx[x4,], dgnf)
-    if (cr>cri) {
-      cri=cr
-      p0=p
-    }
-  }
-  x2=c(x2,p0)
-  cr0=clucri(mx[x2,], dgnf)
-  if (cr0>maxcr){
-    maxcr=cr0
-    best=x2
-  }
-  print(cr0)
-  x0=setdiff(x0,p0)
-  if (length(x0)==0) break
+Gpcl=graph_from_adjacency_matrix(dmxposclq, mode = "undirected", weighted = TRUE, diag = FALSE)
+vGpcl=names(V(Gpcl))
+dGpcl=degree(Gpcl)
+clqGpcl=max_cliques(Gpcl)
+plot(table(lengths(clqGpcl)))
+sz=lengths(psclq[vGpcl])
+Groupings=cbind(Groupings, sex=(sex=="F"))
+AttrGpcl=t(sapply(psclq[order(lengths(psclq))], function(cl){
+  m=c(mx[cl,])
+  n=length(cl)
+  at=apply(Groupings,2,function(a){
+    a=as.factor(rep(a, each=n))
+    x=aggregate(m, by=list(a), "mean")$x
+    x[2]/x[1]
+  })
+}))
+AttrGpcl=scale(AttrGpcl)
+
+for (j in 1:7) {
+  at=AttrGpcl[,j]
+  Gpcl=set.vertex.attribute(Gpcl, name=colnames(Groupings)[j], value=at)
 }
+Gpcl=set.vertex.attribute(Gpcl, "Size", value=sz)
+write.graph(Gpcl, format = "graphml", file="Gpcl.graphml")
 
-plotMDS(vs10[best,], col=dgnf)
+
+
+# Louvain clustering on Gpcl
+
+GpclqLouv=cluster_louvain(Gpcl) 
+GpclqLouv=aggregate(vGpcl,by=list(GpclqLouv$memberships[2,]),"list")$x
+names(GpclqLouv)=seq_along(GpclqLouv)
+x=melt(GpclqLouv)
+xn=x$value
+x=x$L1
+names(x)=xn
+
+glvmap=lapply(GpclqLouv, function(cl){
+  px=clqclqpp$Pep[as.numeric(clqclqpp$CLq1) %in% as.numeric(cl)]
+  table(GvcL[px])
+})
+
+Gpcl=set.vertex.attribute(Gpcl, "Louv", value=x[vGpcl])
+write.graph(Gpcl, format = "graphml", file="Gpcl.graphml")
+
+clqclq=melt(GpclqLouv)
+j=duplicated(clqclq[,1])
+clqclqpp=apply(clqclq,1,function(x){
+  n=as.numeric(x[1])
+  y0=psclq[[as.character(n)]]
+  l=length(y0)
+  x1=unlist(rep(x[1],l))
+  x2=unlist(rep(x[2],l))
+  y=data.frame(Pep=y0,CLq1=x1, Clq2=x2)
+  print(list(x,y0,y))
+  return(y)
+})
+x=c()
+for (l in clqclqpp){
+  x=rbind(x,l)
+}
+clqclqpp=x
+clqclqp=clqclqpp[,-2]
+clqclqp=unique(clqclqp)
+clqclqpdf=cbind(clqclqp, vs10[clqclqp$Pep,])
+clqclqpdf=melt(clqclqpdf)
+
+colnames(clqclqpdf)[3]="Pat"
+P=as.character(clqclqpdf$Pat)
+clqclqpdf=data.frame(clqclqpdf, A=as.factor(Groupings[P,1]),
+                     B=as.factor(Groupings[P,2]),
+                     O=as.factor(Groupings[P,3]),
+                     C=as.factor(Groupings[P,4]),
+                     G=as.factor(Groupings[P,5]),
+                     M=as.factor(Groupings[P,6]),
+                     S=as.factor(Groupings[P,7]))
+clqclqpdf$Clq2=as.factor(clqclqpdf$Clq2)
+
+V=as.numeric(clqclqpdf$value)
+Clq=as.factor(clqclqpdf$Clq2)
+P=as.factor(clqclqpdf$Pat)
+rres=lapply(5:11, function(i){
+  print(i)
+  Par=as.factor(clqclqpdf[,i])
+  Clqclqlm=lme(V~Par*Clq, random=~1|P)
+  res=lsmeans(Clqclqlm, pairwise~Par|Clq)
+  reres=summary(res$contrasts)
+  j=reres$p.value<0.1
+  rres=data.frame(Contrast=as.character(reres$contrast[j]),Clique=as.character(reres$Clq[j]),Estimate=as.numeric(reres$estimate[j]),p.value=as.numeric(reres$p.value[j]))
+  rres[order(rres$Estimate),]
+})
+names(rres)=colnames(clqclqpdf)[5:11]
+sink(file="Xnew.txt")
+print(rres)
+sink()
+ij=rbind(rep(5:7, each=4),rep(8:11,3))
+rres3=apply(ij, 2,function(i){
+  print(i)
+  P1=as.factor(clqclqpdf[,i[1]])
+  P2=as.factor(clqclqpdf[,i[2]])
+  PxP=lme(V~P1*P2*Clq,random=~1|P)
+  resPP=lsmeans(PxP, pairwise~P1|P2|Clq)
+  resPP=summary(resPP)
+  resPP=resPP$contrasts[resPP$contrasts$p.value<0.05,]
+  resPP=resPP[order(resPP$P2,resPP$estimate),]
+  colnames(resPP)[1]=paste(colnames(clqclqpdf)[i[1]],"contrast",sep="_")
+  colnames(resPP)[2]=colnames(clqclqpdf)[i[2]]
+  return(resPP)
+})
+sink(file="Clq2Louvxparams_3way_new.txt")
+print(rres3)
+sink()
+
+
+
+# Stats of clq2 induced subgraph ------------------------------------------
+
+clq2=rep(0,length(vGvs))
+names(clq2)=vGvs
+clq2[clqclqpp$Pep]=clqclqpp$Clq2
+Gvs=set.vertex.attribute(Gvs, name = "Clq2new", value=clq2)
+write.graph(Gvs, format = "graphml", file="Gvs.graphml")
+
+chsqgvlclq2=chisq.posthoc.test(table(GvcL[vGvs],clq2), simulate.p.value=T)
+ij=(1:(nrow(chsqgvlclq2)/2))*2
+ji=ij-1
+ii=which(chsqgvlclq2[ij,]<0.05,arr.ind = T)
+i=chsqgvlclq2$Dimension[ij][ii[,1]]
+j=colnames(chsqgvlclq2)[ii[,2]]
+chsqPHres=data.frame(Cluster=i, Clique2Cl=j,Eff=as.numeric(chsqgvlclq2[ji,][ii]))
+chsqPHres=chsqPHres[order(as.numeric(chsqPHres$Cluster), chsqPHres$Eff),]
+
+Gvsclq2=induced.subgraph(Gvs,posclqpep)
+cmpclq2=components(Gvsclq2)
+Gvsclq2=induced_subgraph(Gvsclq2,names(cmpclq2$membership)[cmpclq2$membership==1])
+vGvsclq2=names(V(Gvsclq2))
+dGvsclq2=degree(Gvsclq2)
+Gvclq2Louv=treeCrawLouv(vGvsclq2, Gvsclq2, s=10) #recursive Louvain clustering - yields a tree
+Gvclq2Louv=lapply(Gvclq2Louv, function(x) {
+  x=unlist(x)
+  names(x)=NULL
+  return(x)
+})
+
+rownames(Groupings)=pats
+x=melt(Gvclq2Louv)
+nx=x$value 
+x=x$L1
+names(x)=nx
+rm(nx)  
+co==c(11,2,)
+plot(Gvsclq2, vertex.size=2.5, vertex.label=NA, vertex.color=x[vGvsclq2], palette=palette())
+
+
+# Peptide map of the ClqClq graph clusters ------------------------
+clq2ppsimple=aggregate(clqclqpp$Clq2, by=list(clqclqpp$Pep), "list")
+x=clq2ppsimple$x
+names(x)=clq2ppsimple$Group.1
+clq2ppsimple=x
+clq2ppsimple=sapply(clq2ppsimple,unique)
+
+Clq2pp=aggregate(clqclqpp$Pep, by=list(clqclqpp$Clq2), unique)
+x=Clq2pp$x
+names(x)=Clq2pp$Group.1
+Clq2pp=x[order(as.numeric(Clq2pp$Group.1))]
+names(Clq2pp)=1:23
+Clq2Ags=lapply(Clq2pp,function(l){
+  l=unlist(l)
+  X=chisq.posthoc.test(table(pepiused,names(pepiused) %in% l),simulate.p.value=T)
+  n=nrow(X)
+  i=1:(n/2)
+  j=X[2*i,4]<0.05
+  X=X[(2*i)-1,c(1,4)]
+  X=X[order(X[,2], decreasing = T),]
+  X[X[,2]>0,]
+})
+sink(file="Clq2pp_positiveAgsignif_new.txt")
+print(Clq2Ags)
+for (i in seq_along(Clq2pp)){
+  l=Clq2pp[[i]]
+  print(list(i,table(pepiused,names(pepiused) %in% l)))
+}
+sink()
+
+Clq2Ags_m=melt(Clq2Ags)
+Clq2Ags_m$Dimension=shortNames[Clq2Ags_m$Dimension]
+Clq2Ags_m$Dimension[is.na(Clq2Ags_m$Dimension)]="Linker"
+Clq2Ags_mx=acast(data=Clq2Ags_m, Dimension~L1)
+Clq2Ags_mx[is.na(Clq2Ags_mx)]=0
+heatmap3(Clq2Ags_mx, col=cpl1(1024),method="ward")
+z=rowsums(Clq2Ags_mx)
+names(z)=rownames(Clq2Ags_mx)
+sink(file="clq2_Agsorted.txt")
+print(sort(z, decreasing = T))
+sink()
+sink("Ags_excluded.txt")
+print(pepi[!(shortNames[pepi] %in% names(z))])
+sink()
+
+
+plot(hclust((dist(t(Clq2Ags_mx)))))
+
+X=Clq2Ags_mx
+X[X==0]=rnorm(sum(X==0),0,1e-16)
+X=X-min(X)+1e-17
+X=log10(abs(X))
+x=prcomp(X)
+n=rownames(X) %in% viralshort
+n[n]="Viral"
+n[n!="Viral"]="Self"
+fviz_screeplot(x, ncp=21)
+fviz_pca_biplot(x, axes=c(1,2),repel=T, habillage=n)
+fviz_pca_biplot(x, axes=c(3,4),repel=T, habillage=n)
+fviz_pca_biplot(x, axes=c(5,6),repel=T, habillage=n)
+fviz_pca_biplot(x, axes=c(7,8),repel=T, habillage=n)
+sink(file="shortNm.txt")
+print(shortNames)
+sink()
+
+Clq2Vir=sapply(Clq2pp, function(x){
+  tb=c(0,0)
+  names(tb)=c("Self","Vir")
+  x=x %in% vir
+  x[x]="Vir"
+  x[!x=="Vir"]="Self"
+  ti=table(x)
+  tb[names(ti)]=ti
+  return(tb)
+})
+
+chisq.posthoc.test(Clq2Vir, simulate.p.value=T)
+
+clqVir=t(sapply(clqord, function(cq){
+  cq=names(cq)
+  l=length(cq)
+  pos=sum(cq %in% vir)
+  c(l-pos,pos)
+}))
+
+clqVir=aggregate(clqVir, by=list(lengths(clqord)), "sum")
+chisq.posthoc.test(clqVir[,2:3], simulate.p.value=T)
+xm=colSums(clqVir)
+allmn=xm[3]/(sum(xm[2:3]))
+x=clqVir$Group.1
+y=clqVir$V2/(clqVir$V1+clqVir$V2)
+plot(x, y, xlim=range(x), ylim=range(y), xlab="clique Size", ylab="Proportion Viral Epitopes") 
+par(new=T)
+plot(c(3,39),c(allmn,allmn), ty="l", xlim=range(x), ylim=range(y), xlab="", ylab="")
+
+
+# MEME motifs of Clq2 peptides --------------------------------------------
+
+clq2motifs=read.csv(file="XSTREMEclq2MOTIFS/motifs.csv")
+x1=sapply(clq2ppsimple,function(z) z[1])
+x2=sapply(clq2ppsimple,function(z) if (length(z)>1) return(z[2]) else return(NA))
+x2=x2[!is.na(x2)]
+clq2motifs=data.frame(clq2motifs,Clique=x1[clq2motifs$Peptides], Clique2=x2[clq2motifs$Peptides])
+clq2motifs=clq2motifs[,-6]
+Gvmeme=induced_subgraph(Gvs, clq2motifs$Peptides)
+Gvmeme=set.vertex.attribute(Gvmeme, "motif", clq2motifs$Peptides, value=clq2motifs$Motif)
+vGvmeme=names(V(Gvmeme))
+################################################
+
 
 
 # Feature selection Loo cliques 2 -----------------------------------------
@@ -534,24 +964,25 @@ Gi=lapply(1:21, function(i){
 
 N=nrow(vb10)
 mx=vb10-min(vb10)+1 
-J=cut(seq_along(clqGvs3_4), 45, labels=F)
- 
+flnm="clqFs.txt"
+
 clqFs=lapply(1:21, function(pat){
   print(pat)
   proct=proc.time()
   clqGvs3_4=max_cliques(Gi[[pat]], min=3, max=4)
- 
+  J=cut(seq_along(clqGvs3_4), 45, labels=F)
   cl=makeCluster(15)
   clusterExport(cl, c("pat","mx","dgnf","N", "clucri","connfix","dunnfix","bhgamfix","BHgamma","clqGvs3_4","J"), envir = environment())
   diaclq=pbsapply(1:45, function(j){
     iJ=J==j
+    bsmx=array(sample(mx[,-pat]), dim = dim(mx[,-pat]))
     sapply(clqGvs3_4[iJ], function(cq){
           cq=names(cq) 
+          print(c(j,cq))
           n=length(cq)
           y=mx[cq,-pat]
           x=clucri(y, dgnf[-pat])
-          bsmx=array(sample(mx[,-pat]), dim = dim(mx[,-pat]))
-          bsx=sapply(1:1000,function(i) {
+          bsx=sapply(1:500,function(i) {
             bscq=sample(1:N,n)
             clucri(bsmx[bscq,],dgnf[-pat])
           })
@@ -568,37 +999,52 @@ clqFs=lapply(1:21, function(pat){
   print(length(callsposclq))
   x1=callsposclq
   cls=Loolocal0(x1,vs10)
+  print(proc.time()-proct)
+  nam=paste(pat,cls,"\n",sep = "_")
+  write(nam, file=flnm, append=T)
   return(cls)
 })
 
-cofmxclqFs=SVMforValidation(clqFs,X=mx,dgnf )
-clqFTb=table(unlist(clqFs))
-mx=vb10-min(vb10)+1
-for (i in 0:20){
+clqFsFromFile=read.table(file="clqFs.txt", header = F, row.names = NULL)
+clqFs1=t(sapply(clqFsFromFile$V1,function(x) unlist(strsplit(x, split="_"))))
+clqFs1=aggregate(clqFs1[,2], by=list(clqFs1[,1]), "list")$x
+
+cofmxclqFs=SVMforValidation(clqFs1,X=mx,dgnf )
+clqFTb=table(unlist(clqFs1))
+
+y0=t(sapply(0:20,function(i){
   y=names(clqFTb)[clqFTb>i]
-  plotMDS(mx[y,], col=dgnf, main=i)
-  print(c(i,clucri(vs10[y,], dgnf)))
-}
+  if (length(y)>1) {
+    plotMDS(mx[y,], col=dgnf, main=i)
+    return(c(i,length(y),clucri(vs10[y,], dgnf)))
+  }
+  else {
+    return(c(i,length(y),0))
+  }
+}))
+
 y=names(clqFTb)[clqFTb>4]
 plotMDS(mx[y,], col=dgnf, labels=NULL, pch=16)
 callsclqf=names(clqFTb)[clqFTb>4]
+#save(callsclqf, file="callsclqfs_nestedANOVA")
 
-pdf(file="hmclqFall_66.pdf")
+pdf(file="hmclqFall_51.pdf")
 hm=heatmap.2(vs10[callsclqf,], hclustfun = hclwrd,  na.rm=F,key.title = NA,symkey=FALSE, cexCol = 0.7,cexRow = 0.5,
-             trace="none",col=cpl1(1000),colsep=c(6,10,15),rowsep=c(7,13,21,28,38,46,52,59),
+             trace="none",col=cpl1(1000),colsep=c(5,10,15),rowsep=c(5,10,15,28,36,40,47),
              margins = c(5,12), lwid=c(0.5,1), lhei = c(0.2,1))    
 dev.off()
 clcalls=callsclqf[rev(hm$rowInd)]
 patord=hm$colInd
-cli=cut(seq_along(clcalls),breaks = c(0,7,13,21,28,38,46,52,59,70), labels = F)
-pati=cut(1:21,breaks = c(0,6,10,15,22), labels = F)
-claov=sapply(1:9,function(i){
+cli=cut(seq_along(clcalls),breaks = c(0,5,10,15,28,36,40,47,70), labels = F)
+pati=cut(1:21,breaks = c(0,5,10,15,22), labels = F)
+
+claov=sapply(1:8,function(i){
   n=length(cli[cli==i])
-  
   y=c(mx[clcalls[cli==i],patord])
-  cl=as.factor(rep(pati,each=n))
+  cl=as.factor(pati)
   p=as.factor(rep(1:21,each=n))
-  a=aov(y~cl/p)
+  y=aggregate(y,by=list(p), "mean")$x
+  a=aov(y~cl)
   x=summary(a)
   ta=TukeyHSD(a,"cl")
   ta=ta$cl[,1]*(ta$cl[,4]<0.01)
@@ -608,27 +1054,27 @@ closs=apply(claov,2,function(j) any(j[c(3,5,6)]>0))
 clain=apply(claov,2,function(j) any(j[c(3,5,6)]<0))
 
 x=clcalls
-x[x=="GMALRVTRNSKINAE"]="ALRVTRNSKINAENK"
 protclcls=sapply(x, function(p){
-  pepinfo[pepinfo[,2]==p,1]
+  pepiused[names(pepiused)==p]
 })
 tclcls=table(unlist(protclcls),cli)
 chisq.test(tclcls, simulate.p.value = T)
-chsqph_prot_cl=chisq.posthoc.test(tclcls, simulate.p.value = T)
-x=as.matrix(chsqph_prot_cl[chsqph_prot_cl$Value=="p values",3:11])
-i=rowSums(x<0.05)
-chsqph_prot_cl[which(i==1)*2,]
-j=colSums(x<0.05)
-virclcls=clcalls %in% vir
 
+aggainloss=c(-1,0,0,-1,1,-1,-1,-1)
+names(aggainloss)=1:8
+aggainloss=as.factor(aggainloss[cli])
+tclglss=table(unlist(protclcls),aggainloss)
+chisq.posthoc.test(tclglss, simulate.p.value = T)
+
+virclcls=clcalls %in% vir
 tvirclcls=table(virclcls,cli)
 chisq.posthoc.test(tvirclcls, simulate.p.value=T)
-tvirloss=table(virclcls,cli %in% 4:5)
-chisq.posthoc.test(tvirloss, simulate.p.value=T)
-tvirgain=table(virclcls,cli %in% 6:7)
-chisq.posthoc.test(tvirgain, simulate.p.value=T)
+x=clcalls[cli==5]
+pepiused[x]
+
 # Increased reactivity to viruses correlates with tumors - 
-# EBV with GBM and papilloma vir with all
+# EBV, papilloma and KSV, in the same cluster there are 2 epitopes from
+# stromelysin and one each from claudin-6 and tyrosinase
 
 ctspep=aggregate(clcalls, by=list(cli), "list")[,2]
 
@@ -651,101 +1097,26 @@ chisq.posthoc.test(clqFIg7tb, simulate.p.value=T)
 boxplot(log10(dGvs)~(clij>0), notch=T)
 kruskal.test(log10(dGvs)~clij)
 
-chisq.posthoc.test(table(cut(AB0mNNg[,1], c(-1e3,-1e-6,1e-6,1e3), labels = F),clij>0), simulate.p.value=T)
-chisq.posthoc.test(table(cut(AB0mNNg[,2], c(-1e3,-1e-6,1e-6,1e3), labels = F),clij>0), simulate.p.value=T)
-chisq.posthoc.test(table(cut(AB0mNNg[,3], c(-1e3,-1e-6,1e-6,1e3), labels = F),clij>0), simulate.p.value=T)
-chisq.posthoc.test(table(cut(AB0mNNg[,3], c(-1e3,-1e-6,1e-6,1e3), labels = F),clij), simulate.p.value=T)
-# The calls avoid reactivities cross reactive with BlGr A 
-# The highest expression calls (cluster 1) have also higher expression in men 
-# then non calls
-
-# Mapping DEx Cliques  ----------------------------------------------------
-
-clq345Gvs=max_cliques(Gvs, min=3, max=5)
-mx=vb10-min(vb10)+1
-
-diaclq345=as.data.frame(t(sapply(clq345Gvs, function(cq){
-  cq=names(cq)
-  y=c(mx[cq,])
-  x=as.factor(rep(dgnf,each=length(cq)))
-  data.frame(Stat=kruskal.test(y~x)$statistic, P=kruskal.test(y~x)$p.value)
-})))
-
-diaclq345$P=p.adjust(diaclq345$P, method = "holm")
-
-posclq34=clq34Gvs[diaclq34$P<0.05]
-posclq345pep=table(unlist(lapply(posclq345, names)))
-
-
-diaclqDnT=t(sapply(posclq345,function(cq) {
-  x=names(cq)
-  y=c(mx[x,])
-  x=as.factor(rep(dgnf,each=length(x)))
-  d=dunn.test(y,g=x, method="bh")
-  dz=d$Z
-  names(dz)=d$comparisons
-  return(dz)  #cbind(d$Z,d$P.adjusted)
-}))
-rownames(diaclqDnT)=seq_along(diaclqDnT[,1])
-
-diaclqDnT[abs(diaclqDnT)<1.65]=0
-clqDnT=sign(diaclqDnT)
-
-peptoclq=lapply(seq_along(posclq34), function(i){
-  clq=posclq34[[i]]
-  data.frame(pep=names(clq), clq=i)
-})
-x=c()
-for (tb in peptoclq){
-  print(tb)
-  x=rbind(x,tb)
-}
-peptoclq=x
-peptoclq=aggregate(peptoclq$clq, by=list(peptoclq$pep), "list")
-x=t(apply(peptoclq,1,function(l){
-  if(length(l[2][[1]])==1) {
-     x=clqDnT[unlist(l[2]),]
-    } else x=colSums(clqDnT[unlist(l[2]),])
-  return(x)
-}))
-rownames(x)=peptoclq[,1]
-peptoclq=x
-pclqf=sign(peptoclq)
-pclqf[abs(peptoclq)<0.5]=0
-
-for (i in 0:7){
-  x=names(clqFTb)[clqFTb>i]
-  z=rownames(pclqf)
-  y=union(x,z)
-  print(i+1)
-  print(table(loo=as.factor(y %in% x), all=as.factor(y %in% z)))
-}
-
-x=unique(pclqf)
-x=cbind(x,x[,1]+2*x[,2]-4*x[,3])
-x[order(x[,4]),]
-y=pclqf[,1]+2*pclqf[,2]-4*pclqf[,3]
-i=cut(y, c(-6,-4,-2.5,-1.5,0,1.5,2.5,3.5), labels=F)
-li=c("Gu","GMu","Md","Gmd","gMu","Mu","GMd")
-cbind(x[order(x[,4]),],li)
-y=li[i]
-names(y)=rownames(pclqf)
-clqflab=rep("N", length(vGvs))
-names(clqflab)=vGvs
-clqflab[names(y)]=y
-
-Gvs=set_vertex_attr(Gvs, "ClqFsLab", value=clqflab)
-
-write.graph(Gvs, format = "graphml", file="Gvs.graphml")
-
-
+clcallsmx=vs10[clcalls,]
+Y=melt(clcallsmx)
+Gr=apply(Groupings, 2, function(l) rep(l,each=51))
+cls=rep(cli,21)
+Y=data.frame(Y,Gr,Cluster=cls)
+Y[,c(1,2,4:11)]=apply(Y[,c(1,2,4:11)],2,as.factor)
+lmclcallsGr=lme(value~A*Cluster, random=~1|Var2, data=Y)
+res=lsmeans(lmclcallsGr, pairwise~A|Cluster)
+reres=summary(res$contrasts)
+lmclcallsGr=lme(value~B*Cluster, random=~1|Var2, data=Y)
+res=lsmeans(lmclcallsGr, pairwise~B|Cluster)
+reres=summary(res$contrasts)
+lmclcallsGr=lme(value~sex*Cluster, random=~1|Var2, data=Y)
+res=lsmeans(lmclcallsGr, pairwise~sex|Cluster)
+reres=summary(res$contrasts)
 
 ######### Comparisons -----------------------------------------------------
-pp=pepinfo$peptide[pepinfo$peptide %in% pep]
+pp=names(pepiused)[names(pepiused) %in% pep]
 calls=vs10[pp,]
-x=pepinfo$protein
-names(x)=pepinfo$peptide
-x=x[pp]
+x=pepiused[pp]
 pepclsinfo=x
 vnms=read.table("vir.txt")[,1]
 ij=rep("self",length(pp))
@@ -760,130 +1131,7 @@ ls=abs(nchar(pp)-7)
 ls=array(rep(ls,ncol(q7pp)), dim=dim(q7pp))
 q7pp=rowSums(q7pp==ls)
 
-cls=pp %in% FSzscom[[8]]
-cls0=pep %in% FSzscom[[8]]
-names(cls0)=pep
-sigprt=pepsigpq4map[pp]
 
-Deg=degree(Gvs)
-Deg=Deg[pp]
-ClC=transitivity(Gvs,type="localundirected")
-names(ClC)=names(V(Gvs))
-ClC=ClC[pp]
-ClC[is.na(ClC)]=0
-
-x=data.frame(calls,Pept=rownames(calls),vir=as.factor(ij),protein=as.factor(pepclsinfo), Id=q7pp, cls=as.factor(cls), SigSeq=as.factor(sigprt), Degree=Deg, ClCoeff=ClC)
-calls=melt(x, measure.vars = 1:21, variable.name = "Patient")
-Dia=unlist(stri_extract_all(calls$Patient, regex="(?<=_)\\w+"))
-calls=cbind(calls, Dia=as.factor(Dia))
-
-boxplot(data=calls,value~Dia+SigSeq, las=2, xlab="", notch=T)
-Taovy=lapply(levels(calls$Dia), function(D){
-  aovy=aov(data=calls,value~SigSeq, subset=Dia==D)
-  boxplot(data=calls,value~SigSeq, subset=Dia==D, main=D)
-  x=TukeyHSD(aovy, "SigSeq")
-  x$SigSeq[x$SigSeq[,4]<0.05, ]
-})
-
-summary(glm(data=calls, value~(cls+Id+log10(Degree+0.5))^2, family = gaussian))
-
-chsqClsId=chisq.test(table(as.factor(cls),q7pp), simulate.p.value = T)
-chsqClsId$stdres
-chsqClsSigP=chisq.test(table(as.factor(cls),sigprt>11), simulate.p.value = T)
-chsqClsSigP$stdres
-chsqClsDeg=chisq.test(table(as.factor(cls),Deg>22), simulate.p.value = T)
-chsqClsDeg$stdres
-
-summary(glm(cls~(log10(ClC+0.01)+log10(Deg+0.5))^2, family = binomial))
-boxplot(data=calls, value~Id+cls, notch=T, las=2, xlab="")
-
-ticks=(1:8)*2-0.5
-boxplot(data=calls, value~cls+Id, col=rep(c(2,3),8), outline=F, las=2, xlab="Number of Overlapping Id 7-mers", ylab="Binding", xaxt='n')
-axis(side=1,ticks,labels = c(0:6,8))
-id=2*calls$Id
-abline(lm(data=calls, value~id, subset = cls==TRUE), col=3, lwd=2)
-abline(lm(data=calls, value~id, subset = cls==FALSE), col=2, lwd=2)
-legend("bottom", c("Non-calls", "Calls"), fill=c(2,3), bty="n", cex=0.75, y.intersp = 2)
-
-boxplot(data=calls, log10(Degree+0.5)~cls, outline=F,ylab="Log10 Degree", xlab="",names=c("Non-calls", "Calls"), notch=T)
-
-x=cbind(x,value=rowMedians(as.matrix(x[,1:21])))
-plot(x$Degree[x$cls==FALSE]+0.5,x$value[x$cls==FALSE], xlim=range(x$Degree+0.5), ylim=range(x$value), cex=0.5, log="x", pch=16, col=rgb(0.9,0.1,0,0.03), xlab="Degree", ylab="Binding")
-par(new=T)
-plot(x$Degree[x$cls==TRUE]+0.75,x$value[x$cls==TRUE], xlim=range(x$Degree+0.5), ylim=range(x$value), cex=0.5, log="x", pch=16,  col=rgb(0,0.5,0,0.6), xlab="Degree", ylab="Binding")
-abline(lm(data=x, value~log10(Degree+0.5), subset = cls==TRUE), col=3, lwd=3)
-abline(lm(data=x, value~log10(Degree+0.5), subset = cls==FALSE), col=2, lwd=3)
-legend("bottom", c("Non-calls", "Calls"), fill=c(2,3), bty="n", cex=0.75, y.intersp = 2)
-
-boxplot(data=x, log10(ClCoeff+0.5)-0.301~cls, notch=T, ylab="Log10 Clustering Coefficient", names=c("Non-calls","Calls"), xlab="")
-legend("topright",legend="p=0.068", bty="n")
-summary(lm(data=x, log10(ClCoeff+0.5)~cls,))
-
-plot(log10(Deg+0.5)+rnorm(length(Deg), 0,0.01),log10(clqmmbr[pp]+0.5)+rnorm(length(pp), 0,0.01), pch=16, cex=cls*0.5+1, col=cls*1+1)
-x=log10(ClC[Deg>3]+0.01)+rnorm(length(ClC[Deg>3]), 0,0.005)
-y=log10(clqmmbr[pp][Deg>3]+0.5)+rnorm(length(pp[Deg>3]), 0,0.03)
-plot(x,y, xlim=range(x), ylim=range(y), pch=16, cex=0.3)
-par(new=T)
-plot(x[cls[Deg>3]==TRUE],y[cls[Deg>3]==TRUE],col=rgb(1,0,0,1), pch=16, xlim=range(x), ylim=range(y))
-
-xy=table(CC=x>(-0.5),Calls=cls[Deg>3]==TRUE)
-chsqxy=chisq.test(xy, simulate.p.value = T)
-chsqxy$stdres
-CCxClqn_c=table(CC=x>(-0.3),ClqN=y>2, Calls=cls[Deg>3]==TRUE)
-CCxClqn_c=as.matrix(CCxClqn_c)
-CCxClqn_c=cbind(CCxClqn_c[1:4],CCxClqn_c[5:8])
-chsqxy=chisq.test(CCxClqn_c, simulate.p.value = T)
-chsqxy$stdres
-
-boxplot(y~cls[Deg>3][x>-0.3], notch=T)
-summary(lm(y~(x+cls[Deg>3])^2))
-plot3d(x,y,log10(Deg[Deg>3]), col = as.numeric(cls[Deg>3])+1, size =5)
-
-Grnd=erdos.renyi.game(length(V(Gvs)),length(E(Gvs)),type="gnm")
-ClCrnd=transitivity(Grnd,type="localundirected")
-ClCrnd[is.na(ClCrnd)]=0
-Degrnd=degree(Grnd)
-Clqrnd=max_cliques(Grnd, min = 4)
-
-pdf(file="Clqmem_Deg.pdf", width = 15, height = 15)
-plot(log10(Deg[Deg>3]+0.5),y, cex=0)
-text(log10(Deg[Deg>3]+0.5),y, cex=0.3, labels = pp)
-dev.off()
-
-weirdclqmem=c("SPWAPKKHRRLSSDQ","YKTCKQAGTCPPDII","SNFKVRDPVIQERLD","ETTDLYCYEQLNDSS","GDICNTMHYTNWTHI","GGAGAGGAGAGGGGR","SGSSITTLSSGPHSL","VQKRHYLVFLIAHHY","RMGGIQRRDHLQTLR","PEPLPQGQLTAYHVS","YPLLKLLGSTWPTTP","LKLLGSTWPTTPPRP","GTHGGTGAGAGAGGA","PQKRPSCIGCKGTHG","APARRTRKPQQPESL")
-
-q7pps=qgrams(IgJtrim,names(V(Gvs)),q=7)
-q7pps=t(q7pps)
-q7pps=q7pps[(q7pps[,1]>0)&(q7pps[,2]>0),]
-
-q7ppp=stringdistmatrix(names(V(Gvs)),rownames(q7pps), method = "lcs", useNames = T)
-ls=abs(nchar(names(V(Gvs)))-7)
-ls=array(rep(ls,ncol(q7ppp)), dim=dim(q7ppp))
-q7ppp=rowSums(q7ppp==ls)
-
-q7mult=rownames(q7pps[q7pps[,1]>1,])
-IgJmult=lapply(q7mult, function(p){
-  grep(p,IgJtrim, value = T)
-})
-IgJmult=unique(unlist(IgJmult))
-seqtoFASTA(IgJmult, "IgJmult.txt")
-
-ppq7mult=unique(unlist(lapply(q7mult, function(p){
-  grep(p, pep, value = T)
-})))
-
-ijppq7=stri_locate_all_fixed(ppq7mult,"GSGS")
-ijppq7GS=sapply(ijppq7, function(x) x[1])
-names(ijppq7GS)=ppq7mult
-ijppq7GS=ijppq7GS[!is.na(ijppq7GS)]
-ij=cut(ijppq7GS, c(0,3.5,7.5,16), labels=F)
-for (i in 1:3){
-  for (p in names(ijppq7GS)[ij==i]){
-    plot(vb10[p,], ty="l", ylim=range(vb10), main=i)
-    par(new=T)
-  }
-  par(new=F)
-}
 
 
 # New comp ----------------------------------------------------------------
@@ -971,7 +1219,6 @@ GvcL=x
 Gvs=set_vertex_attr(Gvs, "Louv", value=GvcL[vGvs])
 write.graph(Gvs, format = "graphml", file="Gvs.graphml")
 
-
 # Graph of clusters -------------------------------------------------------
 
 cx=components(Gvs)
@@ -1015,11 +1262,8 @@ write.graph(GLvcntr, format = "graphml", file="GLvc.graphml")
 
 # Correlation with calls
 
-tGcsLC=table(GvcL,names(GvcL) %in% FSzscom[[8]])
-
-chisqGvsLC=chisq.test(tGcsLC, simulate.p.value = T)
-chisqGvsLC$stdres
-pcls=p.adjust(pnorm(abs(chisqGvsLC$stdres[,2]), lower.tail = F))
+tGcsLC=table(GvcL,names(GvcL) %in% callsclqf)
+chisqGvsLC=chisq.posthoc.test(tGcsLC, simulate.p.value = T)
 
 # Correlation with proteins 
 
@@ -1071,39 +1315,15 @@ image(strmx<14)
 
 # Correlation with idiotopes
 
-q7cut=cut(q7ppp, c(-1,0.5,1.5,100), labels = F)
-ti7GLC=table(col,q7cut)
+q7cut=cut(q7ppp[names(GvcL)], c(-1,0.5,1.5,100), labels = F)
+ti7GLC=table(GvcL,q7cut)
 
 chisqi7GLC=chisq.posthoc.test(ti7GLC, simulate.p.value = T)
+clqclqppi7=cbind(clqclqpp,Idiotypes=q7ppp[clqclqpp$Pep])
+chisq.posthoc.test(table(clqclqppi7$Clq2, cut(clqclqppi7$Idiotypes, c(-1,0.5,1.5,100), labels = F)), simulate.p.value=T)
 
-pi7=p.adjust(pnorm(abs(chisqi7GLC$stdres), lower.tail = F))
-ij=which(array(pi7,dim=dim(chisqi7GLC$stdres))<0.05, arr.ind = T)
-ij=cbind(rownames(chisqi7GLC$stdres)[ij[,1]],colnames(chisqi7GLC$stdres)[ij[,2]])
-ij=ij[order(ij[,1]),]
+# Clusters of cliques 6,10 and 14 have a significant increase in idiotypes
 
-bincalli7sLC=cbind(calls=tGcsLC[,2]/rowSums(tGcsLC), I7=(rowSums(ti7GLC)-ti7GLC[,1])/rowSums(ti7GLC))
-barplot(t(bincalli7sLC), beside = T)
-barplot(t(cbind(tGcsLC[,1],tGcsLC[,2])), xlab = "Clusters", ylab="No of sequences", las=2)
-legend(13.4,700, legend=c("Calls", "Non-calls"), cex=0.85, bty = "n", fill=c("Light Gray", "Black"))
-text(6.5,700,"*", cex=2)
-barplot(t(cbind(ti7GLC[,1],ti7GLC[,2],ti7GLC[,3])), xlab = "Clusters", ylab="No of sequences", las=2)
-legend(1,740, legend=c(">1 IgJ Sequences", "  1 IgJ Sequences", "  0 IgJ Sequences"),cex=0.85, bty = "n", fill=c("Light Gray", "Dark Gray","Black"))
-text(c(5.5,6.7,10.3),c(420,360,744),"*", cex=1.4)
-barplot(rowSums(tGcsLCp>0), ylim = c(0,60), las=2)
-barplot(t(tGcsLCp))
-
-rs=rowSums(tGcsLCp)/sum(tGcsLCp)
-names(rs)=NULL
-cs=colSums(tGcsLCp)/sum(tGcsLCp)
-names(cs)=NULL
-x0=rs %*% t(cs)
-x=tGcsLCp/sum(tGcsLCp)
-xl=x
-xl[xl>0]=log(xl[xl>0])
-x0l=x0
-x0l[x0l>0]=log(x0l[x0l>0])
-mi=x*(xl-x0l)
-image(mi, col=cpl1(100))
 
 # Correlation with viral
 
@@ -1118,110 +1338,6 @@ length(vnms)
 
 # Correlations with NN Dia Groups -----------------------------------------
 
-for (gr in colnames(NNdiaov[,1:3])){
-  y=NNdiaov[names(Lvcl),gr]
-  cy=cut(y, c(-1e6,-1e-6,1e-6,1e6), labels=c("Negative", "Zerro","Positive"))
-  print(table(cy,Lvcl))
-  print(chisq.posthoc.test(table(cy,Lvcl), simulate.p.value=T))
-}
-
-tbNNLv=table(rowSums(NNdiaov[,1:2])!=0, Lvcl)
-csqtbNNLv=chisq.posthoc.test(tbNNLv, simulate.p.value=T)
-csqtbNNLv=as.matrix(apply(csqtbNNLv[c(1,3),3:17],2,as.numeric))
-barplot(csqtbNNLv, beside=T ,col=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), xlab="Cluster", ylab="Standardized Residuals")
-lines(c(0,46),c(3,3))
-lines(c(0,46),c(-3,-3))
-legend("topleft", legend=c("Under represented","Over represented"), fill=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), bty="n")
-
-tbNNGLv=table(NNdiaov[NNdiaov[,1]!=0,1]>0, Lvcl[NNdiaov[,1]!=0])
-csqtbNNGLv=chisq.posthoc.test(tbNNGLv, simulate.p.value=T)
-csqtbNNGLv=as.matrix(apply(csqtbNNGLv[c(1,3),3:ncol(csqtbNNGLv)],2,as.numeric))
-barplot(csqtbNNGLv, beside=T ,col=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), xlab="Cluster", ylab="Standardized Residuals", las=2, main="Lost in GBM")
-lines(c(0,46),c(3,3))
-lines(c(0,46),c(-3,-3))
-legend("topleft", legend=c("Under represented","Over represented"), fill=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), bty="n")
-tbNNGLv=table(NNdiaov[NNdiaov[,1]!=0,1]<0, Lvcl[NNdiaov[,1]!=0])
-csqtbNNGLv=chisq.posthoc.test(tbNNGLv, simulate.p.value=T)
-csqtbNNGLv=as.matrix(apply(csqtbNNGLv[c(1,3),3:ncol(csqtbNNGLv)],2,as.numeric))
-barplot(csqtbNNGLv, beside=T ,col=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), xlab="Cluster", ylab="Standardized Residuals", las=2, main="Over Expressed in GBM")
-lines(c(0,46),c(3,3))
-lines(c(0,46),c(-3,-3))
-legend("topleft", legend=c("Under represented","Over represented"), fill=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), bty="n")
-tbNNMLv=table(NNdiaov[NNdiaov[,2]!=0,2]>0, Lvcl[NNdiaov[,2]!=0])
-csqtbNNMLv=chisq.posthoc.test(tbNNMLv, simulate.p.value=T)
-csqtbNNMLv=as.matrix(apply(csqtbNNMLv[c(1,3),3:ncol(csqtbNNMLv)],2,as.numeric))
-barplot(csqtbNNMLv, beside=T ,col=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), xlab="Cluster", ylab="Standardized Residuals", las=2, main="Lost in Meta")
-lines(c(0,46),c(3,3))
-lines(c(0,46),c(-3,-3))
-legend("topleft", legend=c("Under represented","Over represented"), fill=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), bty="n")
-tbNNMLv=table(NNdiaov[NNdiaov[,2]!=0,2]<0, Lvcl[NNdiaov[,2]!=0])
-csqtbNNMLv=chisq.posthoc.test(tbNNMLv, simulate.p.value=T)
-csqtbNNMLv=as.matrix(apply(csqtbNNMLv[c(1,3),3:ncol(csqtbNNMLv)],2,as.numeric))
-barplot(csqtbNNMLv, beside=T ,col=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), xlab="Cluster", ylab="Standardized Residuals", las=2, main="Over Expressed in Meta")
-lines(c(0,46),c(3,3))
-lines(c(0,46),c(-3,-3))
-legend("topleft", legend=c("Under represented","Over represented"), fill=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), bty="n")
-
-HLA36=names(pp)[pp==pepi[24]]
-
-HLA36=NNdiaov[HLA36,1:2]
-HLA36pos=HLA36[rowSums(HLA36)!=0,]
-HLA36pep=rownames(HLA36pos)
-
-cyclB1=names(pp)[pp=="G2/mitotic-specific cyclin-B1 (UniProt P14635)"]
-
-cyclB1=NNdiaov[cyclB1,1:2]
-cyclB1pos=cyclB1[rowSums(cyclB1)!=0,]
-cyclB1pep=rownames(cyclB1pos)
-
-PSA=names(pp)[pp==pepi[40]]
-
-PSA=NNdiaov[PSA,1:2]
-PSApos=PSA[rowSums(PSA)!=0,]
-PSApep=rownames(PSApos)
-
-Myc=names(pp)[pp==pepi[35]]
-
-Myc=NNdiaov[Myc,1:2]
-Mycpos=Myc[rowSums(Myc)!=0,]
-Mycpep=rownames(Mycpos)
-
-p53nn=names(pp)[pp=="Cellular tumor antigen p53 (UniProt Q2XN98)"]
-
-p53nn=NNdiaov[p53nn,1:2]
-p53nnpos=p53nn[rowSums(p53nn)!=0,]
-p53nnpep=rownames(p53nnpos)
-
-H4=names(pp)[pp=="Histone H4 (UniProt P62805)"]
-
-H4nn=NNdiaov[H4,1:2]
-H4nnpos=H4nn[rowSums(H4nn)!=0,]
-H4nnpep=rownames(H4nnpos)
-
-Tyrnn=names(pp)[pp=="Tyrosinase (UniProt P14679)"]
-
-Tyrnn=NNdiaov[Tyrnn,1:2]
-Tyrnnpos=Tyrnn[rowSums(Tyrnn)!=0,]
-Tyrnnpep=rownames(Tyrnnpos)
-
-x=c(HLA36pep, PSApep, Mycpep, cyclB1pep, p53nnpep, H4nnpep, Tyrnnpep)
-plotMDS(vs10[x,], col=dgnf, pch=16, cex=3)
-clucri(vb[x,], dgnf)
-
-l=x
-L=list(dgnC, dgnM, dgnG)
-cl=makeCluster(3)
-clusterExport(cl, c("rfe", "BHgamma", "bhgamfix","connfix","dunnfix","vb10","L","dgnf","l"), envir=environment())
-calls=pblapply(L, function(d) {
-  m=vb10[l,]
-  x=rfe(m, d)
-  rownames(x[[1]])
-},cl=cl)
-x=table(unlist(calls))
-fs=names(x)[x>1]
-stopCluster(cl)
-
-plotMDS(vb10[fs,], pc=16, col=dgnf, cex = 3)
 
 
 # HLA A 36
@@ -1243,412 +1359,74 @@ names(sex)=pats
 Lvcl=col
 names(Lvcl)=rownames(vb10)
 
-wilsex=sapply(1:14, function(i){
+aovsex=sapply(1:14, function(i){
   print(i)
   m=vb10[Lvcl==i,]
   m=melt(m)
-  m=cbind(m, Sex=sex[m$Var2])
-  w=wilcox.test(data=m, value~Sex)
-  return(c(W=w$statistic, p=w$p.value))
+  m=cbind(m, Sex=sex[m$Var2], Pat=rep(pats,each=sum(Lvcl==i)))
+  w=summary(aov(data=m, value~Sex+Error(Pat)))
+  return(w[[1]][[1]][1,5])
 })
-wilsex[2,]=p.adjust(wilsex[2,])
+aovsex=p.adjust(aovsex)
 
-ij=c(5,6,9,10,12)
-ry=range(vb10[rownames(vb10) %in% names(Lvcl)[Lvcl %in% c(5,6,9,10,12)],])
-boxplot(vb10[rownames(vb10) %in% names(Lvcl)[Lvcl %in% ij]]~Lvcl[Lvcl %in% ij])
-for (i in ij) {
-  hist(vb10[rownames(vb10) %in% names(Lvcl)[Lvcl==i],], breaks=50, xlim=ry, main=i)
-}
 
 # Cor. Sex - NN - egonetwork ----------------------------------------------
 
 
-y=sapply(vGvs,  function(n){
-  x=names(ego(Gvs, nodes=n)[[1]])
-  if (length(x)<2) return(NULL)
-  x=melt(vb10[x,])
-  x=cbind(x,sex=sex[x$Var2])
-  wilcox.test(data=x,value~sex)$p.value
-})
-y=unlist(y[!is.na(y)])
-y=p.adjust(y)
-sum(y<0.05)
-snn=vGvs %in% names(y)[y<0.05]
-names(snn)=vGvs
-sxnn=sapply(vGvs, function(n){
-  x=names(ego(Gvs, nodes=n)[[1]])
-  if (length(x)<2) return(NULL)
-  x=melt(vb010[x,])
-  x=cbind(x,sex=sex[x$Var2])
-  rt=aggregate(value~sex, data=x, FUN="median")
-  rt=rt$value[rt$sex=="F"]/rt$value[rt$sex=="M"]
-  log10(summary(aov(value~sex, data=x))[[1]][1,4])*sign(log10(rt))
-})
-sxnn=unlist(sxnn)
-sxn=rep(0,length(vGvs))
-names(sxn)=vGvs
-sxn[names(sxnn)]=sxnn
-sxn[names(snn)[!snn]]=0
-
-table(M=sxn<1, F=sxn>-1)
-
-sxn_nn=rep(0, length(vGvs))
-names(sxn_nn)=vGvs
-jf=unique(unlist(sapply(names(sxn)[sxn>0], function(v){
-  names(ego(Gvs,1, nodes=v)[[1]])
-})))
-jm=unique(unlist(sapply(names(sxn)[sxn<0], function(v){
-  names(ego(Gvs,1, nodes=v)[[1]])
-})))
-jfm=intersect(jf,jm)
-jf=setdiff(jf,jfm)
-jm=setdiff(jm,jfm)
-
-sxn_nn[jf]=1
-sxn_nn[jm]=-1
-sxn_nn[jfm]=2
-Gvs=set_vertex_attr(Gvs, "Sexnbh", value=sxn)
-Gvs=set_vertex_attr(Gvs, "SexNN", value=sxn_nn)
-write.graph(Gvs, format = "graphml", file="Gvs.graphml")
-
-tbclsxnn=table(cls0,sxn_nn)
-chsqtbclsxnn=chisq.posthoc.test(tbclsxnn, simulate.p.value = )
-chsqtbclsxnn
-
-jfmset=read.csv(file="JFM.csv")
-sort(table(pepinfo$protein[pepinfo$peptide %in% jfmset[,1]]), decreasing = T)
-jfmvset=read.csv(file="JFMvir.csv")
-sort(table(pepinfo$protein[pepinfo$peptide %in% jfmvset$Label]), decreasing = T)
-
-tsxvir=table(sxn_nn, vGvs %in% vir)
-chisq.posthoc.test(tsxvir, simulate.p.value=T)
-jj=(sxn>0)+1+(sxn<0)*2
-jj[jj==1]="none"
-jj[jj==2]="F"
-jj[jj==3]="M"
-tsxvir1=table(vGvs %in% vir,jj)
-chisq.posthoc.test(tsxvir1, simulate.p.value=T)
 # Gender specific reactivities correlate with antiviral in women
 # and are anticorrelated in men
 
-tsxi7=table(sxn_nn,q7cut)
-chsqtsxi7=chisq.posthoc.test(tsxi7, simulate.p.value=T) 
-barplot(as.matrix(chsqtsxi7[chsqtsxi7$Value =="Residuals",3:5]), beside=T, 
-        col=c(rgb(0,0,1,1),rgb(0.5,0.5,0.5,0.5),rgb(1,0,0,1), rgb(1,1,0,1)),
-        names=c("no Id", " 1 Id 7-frame", ">1 Id 7-frame"), 
-        ylab="Chi Square Residuals", ylim=c(-5,5))
-text(c(6.5,8.5,14.5),rep(4,3),labels = c("*","*","*"), cex=3)
 
 # Highly common idiotope determinants are crossreactive with both male and 
 # female specific reactivties (yellow) but are not indifferent to gender 
 # separataion. Unique idiotype reactivities are more common in man than in
 # women.
 
-tsxi7_=table((sxn>-1)-(sxn<1),q7cut)
-chsqtsxi7_=chisq.posthoc.test(tsxi7_, simulate.p.value=T) 
 
 # When using only the central vertex instead of the whole neighborhood
 # these findings do not reach statistical significance
 
-sxn_n=sxn_nn
-sxn_n[sxn_n==2]=0
-tsx1i7=table(sxn_n,q7cut)
-chsqtsx1i7=chisq.posthoc.test(tsx1i7, simulate.p.value=T) 
-barplot(as.matrix(chsqtsx1i7[chsqtsx1i7$Value =="Residuals",3:5]), beside=T, 
-        col=c(rgb(0,0,1,1),rgb(0.5,0.5,0.5,0.5),rgb(1,0,0,1)),
-        names=c("no Id", " 1 Id 7-frame", ">1 Id 7-frame"), 
-        ylab="Chi Square Residuals", ylim=c(-5,5))
-text(c(5.5,7.5),rep(4,2),labels = c("*","*"), cex=1.5)
-text(c(11.5,11.5),c(4,3.3),labels = c("\U2640","\U2642"), col=c(rgb(1,0,0,1),rgb(0,0,1,1)),cex=2)
-
-
-tviri7=table(vGvs %in% vir, q7cut)
-legend("bottomright", 
-       fill=c(rgb(0,0,1,1),rgb(0.5,0.5,0.5,0.5),rgb(1,0,0,1), rgb(1,1,0,1)),
-       legend = c("M","none","F","FM"))
-
-chisq.posthoc.test(tviri7, simulate.p.value=T) 
-
-tnnsx=table(rowSums(NNdiaov[,1:2])!=0,sxn_nn)
-chsqtnnsxn=chisq.posthoc.test(tnnsx, simulate.p.value=T)
-chsqtnnsxn=as.matrix(apply(chsqtnnsxn[c(1,3),3:6],2,as.numeric))
-barplot(chsqtnnsxn, beside=T ,col=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), 
-        xlab="Gender Related Compartments", ylab="Standardized Residuals",
-        names=c("M", "None", "F","Overlap"))
-lines(c(0,46),c(3,3))
-lines(c(0,46),c(-3,-3))
-lines(c(0,46),c(2.5,2.5), col="grey")
-lines(c(0,46),c(-2.5,-2.5), col="grey")
-legend("topleft", legend=c("Deficient","Abundant"), fill=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), bty="n")
-
-tnnGsx=table(NNdiaov[NNdiaov[,1]!=0,1]<0,sxn_nn[NNdiaov[,1]!=0])
-chsqtnnGsxn=chisq.posthoc.test(tnnGsx, simulate.p.value=T)
-chsqtnnGsxn=as.matrix(apply(chsqtnnGsxn[c(1,3),3:6],2,as.numeric))
-barplot(chsqtnnGsxn, beside=T ,col=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), 
-        xlab="Gender Related Compartments", ylab="Standardized Residuals GBM",
-        names=c("M", "None", "F","Overlap"))
-lines(c(0,46),c(2.5,2.5))
-lines(c(0,46),c(-2.5,-2.5))
-legend("topleft", legend=c("Depleted","Enriched"), fill=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), bty="n")
-
-tnnGsx=table(NNdiaov[NNdiaov[,2]!=0,2]<0,sxn_nn[NNdiaov[,2]!=0])
-chsqtnnGsxn=chisq.posthoc.test(tnnGsx, simulate.p.value=T)
-chsqtnnGsxn=as.matrix(apply(chsqtnnGsxn[c(1,3),3:6],2,as.numeric))
-barplot(chsqtnnGsxn, beside=T ,col=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), 
-        xlab="Gender Related Compartments", ylab="Standardized Residuals Meta",
-        names=c("M", "None", "F","Overlap"))
-lines(c(0,46),c(2.5,2.5))
-lines(c(0,46),c(-2.5,-2.5))
-legend("topleft", legend=c("Depleted","Enriched"), fill=c(rgb(0.8,0.8,0.8,0.5),rgb(0,0,0,1)), bty="n")
-
-posclqsx=lapply(posclq, function(l){
-  x=sxn[names(l)]
-  cut(x, c(-100,-0.5,0.5,100), labels=F)
-})          
-
-xM=t(sapply(posclqsx, function(x) c(length(x),sum(x==1)/length(x))))
-aggregate(xM[,2], by=list(xM[,1]), "mean")
-xF=t(sapply(posclqsx, function(x) c(length(x),sum(x==3)/length(x))))
-aggregate(xF[,2], by=list(xF[,1]), "mean")
-
-ctsx=t(sapply(ctspep,function(l) {
-  tx=rep(0,3)
-  names(tx)=c("-1","0","1")
-  t0=table(sxn_n[l])
-  tx[names(t0)]=t0
-  return(tx)
-}))
-tclsx=table(calls=as.factor(pep %in% clcalls), sxn_n)
-chisq.posthoc.test(as.table(ctsx), simulate.p.value=T)
-
-
-# Cor. Sex - NN by clique -------------------------------------------------
-
-mx=vb10-min(vb10)+1
-
-ij=cut(seq_along(clqGvs),40, labels = F)
-cl=makeCluster(4)
-clusterExport(cl,c("clqGvs","mx","sex","ij"), envir = environment())
-sexclq=pbsapply(1:40, function(i){
-  cqi=clqGvs[ij==i]
-  xx=as.data.frame(t(sapply(cqi, function(cq){
-    cq=names(cq)
-    y=c(mx[cq,])
-    x=as.factor(rep(sex,each=length(cq)))
-    d=data.frame(Intensity=y, Sex=x)
-    tt=wilcox.test(data=d, Intensity~Sex)
-    z=aggregate(Intensity~Sex,data=d,median)
-    c(Stat=log10(z$Intensity[1]/z$Intensity[2]), P=tt$p.value)
-  })))
-  return(xx)
-},cl=cl)
-stopCluster(cl)
-
-sexclq=data.frame(Stat=unlist(sexclq["Stat",]),P=unlist(sexclq["P",]))
-
-sexclq$P=p.adjust(sexclq$P, method = "BH")
-
-posexclq=clqGvs[sexclq$P<0.05]
-lclqposex=lengths(posexclq)
-lclqsex=lengths(clqGvs)
-tlclqposex=table(lclqposex)
-tlclqsex=table(lclqsex)
-ntclqposex=as.numeric(names(tlclqposex))
-ntclqsex=as.numeric(names(tlclqsex))
-tlclqposex=c(tlclqposex, rep(0,length(ntclqsex)-length(ntclqposex)))
-names(tlclqposex)=ntclqsex
-plot(tlclqposex/tlclqsex, ylim=range(tlclqposex/tlclqsex), xlab="", ylab="", las=2)
-par(new=T)
-plot(c(3,38),c(0.4,0.4), ty="l", ylim=range(tlclqposex/tlclqsex), xlab="Clique Size", ylab="Proportion of Cliques with Sex Dependent Reactivtiy", las=2)
-
-x=chisq.posthoc.test(cbind(tlclqsex-tlclqposex,tlclqposex), simulate.p.value = T)
-j=(1:(nrow(x) %/% 2))*2
-i=which(x[j,3]<0.05)
-
-pepsexposclq=unlist(lapply(posexclq, names))
-ttpepcqsx=table(pepsexposclq)
-pepclq=unlist(lapply(clqGvs, names))
-ttpepcq=table(pepclq)
-
-
-ppsxoclq=names(ttpepcqsx)
-
-
-pepbyclqsx=sapply(ppsxoclq, function(p){
-  x1=ttpepcq[p]
-  x2=ttpepcqsx[p]
-  x=cbind(All=as.numeric(x1), Sex=as.numeric(x2))
-  return(x)
-})
-nm=colnames(pepbyclqsx)
-pepbyclqsx=t(data.matrix(pepbyclqsx))
-rownames(pepbyclqsx)=nm
-pepbyclqsxrt=pepbyclqsx[,2]/pepbyclqsx[,1]
-
-clqsxFM=sexclq$Stat[sexclq$P<0.05]
-pepsexFposclq=unlist(lapply(posexclq[clqsxFM>0], names))
-ttpepcqFsx=table(pepsexFposclq)
-pepsexMposclq=unlist(lapply(posexclq[clqsxFM<0], names))
-ttpepcqMsx=table(pepsexMposclq)
-xFM=union(names(ttpepcqFsx),names(ttpepcqMsx))
-x=cbind(xFM %in% names(ttpepcqFsx),xFM %in% names(ttpepcqMsx))
-rownames(x)=xFM
-xFM=x
-x=rep(0,length(vGvs))
-names(x)=vGvs
-x[rownames(xFM)[xFM[,1]==T]]=1
-x[rownames(xFM)[xFM[,2]==T]]=-1
-x[rownames(xFM)[xFM[,1]&xFM[,2]]]=0
-table(x)
-
-Gvs=set_vertex_attr(Gvs, "Sexclqpep", value =x)
-write.graph(Gvs, format = "graphml", file="Gvs.graphml")
-
-vgvsSexclq=x
-vsxlq=as.factor(x)
-boxplot(log10(dGvs)~vsxlq, notch=T, names=c("M","none","F"), ylab="Log Degree", xlab="Sex Differential Expression")
-aovDsxclq=aov(log10(dGvs+0.5)~vsxlq)
-summary(aovDsxclq)
-TukeyHSD(aovDsxclq)
-
-mnvs=rowMeans(vs10)
-boxplot(mnvs~vsxlq, notch=T, names=c("M","none","F"), ylab="Mean", xlab="Sex Differential Expression")
-aovMsxclq=aov(mnvs~vsxlq)
-summary(aovMsxclq)
-TukeyHSD(aovMsxclq)
-
-ij=cut(rank(mnvs), 5, labels=F)
-for (i in 1:5) {
-  print(c(i,range(mnvs[ij==i])))
-}
-rtclqsx=as.table(aggregate(vsxlq, by=list(ij), "table")[[2]])
-rownames(rtclqsx)=1:5
-chsqclsx=chisq.posthoc.test(rtclqsx,simulate.p.value=T)
-barplot(as.matrix(chsqclsx[chsqclsx[,2]=="Residuals",3:5]), ylab="Z Score", 
-        xlab="Sex Differential Expression", beside=T, names=c("F","None","M"))
-lines(c(0,18),c(3,3))
-lines(c(0,18),c(-3,-3))
-legend("topright",legend=paste("Mean Quintile ", 1:5, sep=""), 
-       fill=c(rgb(0,0,0,0.875),rgb(0,0,0,0.75),rgb(0,0,0,0.5),rgb(0,0,0,0.25),rgb(0,0,0,0.125)),
-       bty="n")
-
-
-x=chsqclsx[chsqclsx[,2]=="p values",3:5]
-x=apply(x,1,function(l) any(l<0.05))
-chsqcls=chsqclsx[chsqclsx[,2]=="Residuals",][x,]
-
-
-# Cor. AB0 -NN by clique --------------------------------------------------
-
-
-
-ij=cut(seq_along(clqGvs),40, labels = F)
-cl=makeCluster(4)
-clusterExport(cl,c("clqGvs","mx","BlGr","ij"), envir = environment())
-AB0clq=pbsapply(1:40, function(i){
-  cqi=clqGvs[ij==i]
-  xx=as.data.frame(t(sapply(cqi, function(cq){
-    cq=names(cq)
-    y=c(mx[cq,])
-    xA=as.factor(rep(BlGr$A*1,each=length(cq)))
-    xB=as.factor(rep(BlGr$B*1,each=length(cq)))
-    x0=as.factor(rep(BlGr$N*1,each=length(cq)))
-    d=data.frame(Intensity=y, A=xA, B=xB, N=x0)
-    ttA=wilcox.test(data=d, Intensity~A)
-    ttB=wilcox.test(data=d, Intensity~B)
-    tt0=wilcox.test(data=d, Intensity~N)
-    zA=aggregate(Intensity~A,data=d,median)
-    zB=aggregate(Intensity~B,data=d,median)
-    z0=aggregate(Intensity~N,data=d,median)
-    resA=c(Stat=log10(zA$Intensity[2]/zA$Intensity[1]), P=ttA$p.value)
-    resB=c(Stat=log10(zB$Intensity[2]/zB$Intensity[1]), P=ttB$p.value)
-    res0=c(Stat=log10(z0$Intensity[2]/z0$Intensity[1]), P=tt0$p.value)
-    return(data.frame(A=resA,B=resB, N=res0))
-  })))
-  return(xx)
-},cl=cl)
-stopCluster(cl)
-
-
-xA=unlist(AB0clq[1,], recursive = F)
-xB=unlist(AB0clq[2,], recursive = F)
-x0=unlist(AB0clq[3,], recursive = F)
-xA=t(sapply(xA, function(l) data.frame(Eff=l[1], p=l[2])))
-xB=t(sapply(xB, function(l) data.frame(Eff=l[1], p=l[2])))
-x0=t(sapply(x0, function(l) data.frame(Eff=l[1], p=l[2])))
-AB0=cbind(xA,xB,x0)
-colnames(AB0)=c("Aeff","Ap","Beff","Bp","Neff","Np")
-rm(xA,xB,x0)
-jA=p.adjust(AB0[,2])<0.05
-jB=p.adjust(AB0[,4])<0.05
-j0=p.adjust(AB0[,6])<0.05
-jAE=AB0[,1]>0
-jBE=AB0[,3]>0
-j0E=AB0[,5]>0
-ppAp=unique(unlist(lapply(clqGvs[jA&jAE], names)))
-ppAn=unique(unlist(lapply(clqGvs[jA&(!jAE)], names)))
-ppBp=unique(unlist(lapply(clqGvs[jB&jBE], names)))
-ppBn=unique(unlist(lapply(clqGvs[jB&(!jBE)], names)))
-pp0p=unique(unlist(lapply(clqGvs[j0&j0E], names)))
-pp0n=unique(unlist(lapply(clqGvs[j0&(!j0E)], names)))
-xAp=pep %in% ppAp
-xAn=pep %in% ppAn
-xBn=pep %in% ppBn
-x0n=pep %in% pp0n
-xAll=rowSums(cbind(xAp,2*xAn,4*xBn,8*x0n))
-Gvs=set_vertex_attr(Gvs, "AB0clqpep", value =xAll)
-write.graph(Gvs, format = "graphml", file="Gvs.graphml")
-
 
 # ABO NN mean--------------------------------------------------------------
 
-
-AB0mNN=t(sapply(vGvs, function(p){
+cl=makeCluster(15)
+clusterExport(cl,c("vs10","BlGr","Gvs"))
+clusterEvalQ(cl,{require(nlme)
+                 require(igraph)
+                 require(lsmeans())})
+AB0mNN=t(pbsapply(vGvs, function(p){
     pp=names(ego(Gvs,1, p)[[1]])
     x=vs10[pp,]
-    print(which(vGvs==p))
+    #print(which(vGvs==p))
     if (!is.null(nrow(x))) n=nrow(x) else n=1
     Y=c(x)
-    # xF=apply(cbind(BlGr[,1:2]*1,sex),1,paste,collapse="_")
-    # xF=as.factor(rep(xF,each=n))
     pat=as.factor(rep(1:21,each=n))
     xA=as.factor(rep(BlGr$A,each=n))
     xB=as.factor(rep(BlGr$B,each=n))
-    xS=as.factor(rep(sex,each=n))
-    xS=summary(aov(Y~xS/pat*xA/pat*xB/pat)) 
-    xA=summary(aov(Y~xA/pat))
-    xB=summary(aov(Y~xB/pat))
-    
 
-    if(n>1) {y=c(F_A=as.numeric(xA[[1]][1,4]),
-                 F_B=as.numeric(xB[[1]][1,4]),
-                 F_S=as.numeric(xS[[1]][1,4]),
-                 PadjA=as.numeric(xA[[1]][1,5]),
-                 PadjB=as.numeric(xB[[1]][1,5]),
-                 PadjS=as.numeric(xS[[1]][1,5]))
+    lmrA=lme(Y~xA,random=~1|pat)
+    resA=lsmeans(lmrA, pairwise~xA)
+    xA=summary(resA)
+    lmrB=lme(Y~xB,random=~1|pat)
+    resB=lsmeans(lmrB, pairwise~xB)
+    xB=summary(resB)
+    
+    if(n>1) {y=data.frame(F_A=as.numeric(xA$contrasts[[2]]),
+                 F_B=as.numeric(xB$contrasts[[2]]),
+                 PadjA=as.numeric(xA$contrasts[[6]]),
+                 PadjB=as.numeric(xA$contrasts[[6]]))
               return(y)
     }
     else {
-      return(rep(1, 6))
+      return(data.frame(F_A=0,F_B=0,PadjA=1,PadjB=1))
     }
    
-}))
+}, cl=cl))
+stopCluster(cl)
 
 mx=vb10-min(vb10)+1
-Ltb=data.frame(Val=as.numeric(c(mx)), Sex=as.factor(rep(sex, each=nrow(vs10))), 
-               A=as.factor(rep(BlGr$A*1+1,each=nrow(vs10))), 
-               B=as.factor(rep(BlGr$B*1+1,each=nrow(vs10))))
 
-x=aov(data=Ltb, Val~Sex+A*B)
-
-AB0mNN[,4:6]=apply(AB0mNN[,4:6],2,p.adjust,method="BH",n=3*length(AB0mNN[,4]))
-cor(log10(AB0mNN[AB0mNN[,4]<0.05&AB0mNN[,6]<0.05,c(1,3)]))
-cor(log10(AB0mNN[AB0mNN[,5]<0.05&AB0mNN[,6]<0.05,c(2,3)]))
-cor(as.numeric(as.factor(BlGr$A)),as.numeric(as.factor(sex)), method="spearman")
-cor(as.numeric(as.factor(BlGr$B)),as.numeric(as.factor(sex)), method="spearman")
-chisq.test(table(BlGr$A,sex), simulate.p.value = T)
-
-chisq.test(table(AB0mNN[,4]<0.05,AB0mNN[,6]<0.05), simulate.p.value = T)
+AB0mNN[,3:4]=apply(AB0mNN[,3:4],2,p.adjust,method="BH")
 
 AB0sNN=t(sapply(vGvs, function(p){
   x=vs10[names(ego(Gvs,1, p)[[1]]),]
@@ -1664,77 +1442,6 @@ AB0sNN=t(sapply(vGvs, function(p){
   return(c(sign(xA),sign(xB), sign(xS)))
 }))
 
-AB0mNNg=AB0mNN[,1:3]
-for (i in 1:3) {
-  AB0mNNg[,i]=AB0mNNg[,i]*(AB0mNN[,i+3]<0.001)
-}
-for (i in 1:3) {
-  AB0mNNg[,i]=AB0mNNg[,i]*AB0sNN[,i]
-}
-
-xa=cut((AB0mNN[,4]<0.001)*AB0sNN[,1], c(-2,-1e-4,1e-4,2), labels = c("Neg","None","Pos"))
-xb=cut((AB0mNN[,5]<0.001)*AB0sNN[,2], c(-2,-1e-4,1e-4,23), labels = c("Neg","None","Pos"))
-table(A=xa,B=xb)
-
-Gvs=set_vertex_attr(Gvs, "AB0_A", value =AB0mNNg[,1])
-Gvs=set_vertex_attr(Gvs, "AB0_B", value =AB0mNNg[,2])
-Gvs=set_vertex_attr(Gvs, "AB0_S", value =AB0mNNg[,3])
-
-write.graph(Gvs, format = "graphml", file="Gvs.graphml")
-
-chisq.test(table(sex,BlGr$A), simulate.p.value = T)
-chisq.test(table(sex,BlGr$B), simulate.p.value = T)
-chisq.test(table(sex,BlGr$N), simulate.p.value = T)
-table(sex,BlGr$N)
-table(sex,BlGr$A)
-table(sex,BlGr$B)
-
-AB0SxKw=lapply(1:14, function(cl){
-  j=names(GvcL)[GvcL==cl]
-  n=length(j)
-  Y=c(vs10[j,])
-  xF=apply(cbind(BlGr*1,sex),1,paste,collapse="_")
-  xF=as.factor(rep(xF,each=n))
-  #boxplot(Y~xF, notch=T, main=cl, las=2, xlab="")
-  x=dunn.test(Y,xF,method="bh")
-  y=cbind(x$Z,x$P.adjusted)
-  rownames(y)=x$comparisons
-  colnames(y)=c("Effect","P.adjusted")
-  y=y[y[,2]<0.05,]
-  return(list(y[order(y[,1]),]))
-})
-
-# correlation of diagnosis associated reactivities
-
-nnG=cut(NNdiaov[,1], c(-2,-1e-2,1e-2,2),labels=c("Gneg","Gnone","Gpos"))
-nnM=cut(NNdiaov[,2], c(-2,-1e-2,1e-2,2),labels=c("Mneg","Mnone","Mpos"))
-nnA=cut(AB0mNNg[,1], c(-1e3,-1e-1,1e-1,1e3),labels=c("Aneg","Anone","Apos"))
-nnB=cut(AB0mNNg[,2], c(-1e3,-1e-1,1e-1,1e3),labels=c("Bneg","Bnone","Bpos"))
-
-sink(file="diagXAB0.txt")
-table(nnG,nnA)
-chisq.test(table(nnG,nnA))
-chisq.posthoc.test(table(nnG,nnA))
-table(nnG,nnB)
-chisq.test(table(nnG,nnB))
-chisq.posthoc.test(table(nnG,nnB))
-table(nnM,nnA)
-chisq.test(table(nnM,nnA))
-chisq.posthoc.test(table(nnM,nnA))
-table(nnM,nnB)
-chisq.test(table(nnM,nnB))
-chisq.posthoc.test(table(nnM,nnB))
-sink()
-
-chisq.posthoc.test(table(x,pep %in% callsclqf), simulate.p.value=T)
-chisq.posthoc.test(table(y,pep %in% callsclqf), simulate.p.value=T)
-chisq.posthoc.test(table(AB0mNNg[,1]!=0,pep %in% callsclqf), simulate.p.value=T)
-chisq.posthoc.test(table(AB0mNNg[,2]!=0,pep %in% callsclqf), simulate.p.value=T) # *
-chisq.posthoc.test(table(AB0mNNg[,1]>0,pep %in% callsclqf), simulate.p.value=T)
-chisq.posthoc.test(table(AB0mNNg[,1]<0,pep %in% callsclqf), simulate.p.value=T)
-chisq.posthoc.test(table(AB0mNNg[,2]>0,pep %in% callsclqf), simulate.p.value=T)
-chisq.posthoc.test(table(AB0mNNg[,2]<0,pep %in% callsclqf), simulate.p.value=T)
-chisq.posthoc.test(table(apply(AB0mNNg[,1:2],1,function(l) any(l!=0)),pep %in% callsclqf), simulate.p.value=T)
 
 mx=vb10-min(vb10)+1
 AB0loNN=t(sapply(vGvs, function(p){
@@ -1758,32 +1465,50 @@ AB0loNN=t(sapply(vGvs, function(p){
   xS=diff(log2(aggregate(Y, by=list(xS),"mean")[,2]))
   return(c(A=xA, B=xB, S=xS))
 }))
+prof=as.factor(BlGr$A)
+shamFs=sapply(1:50, function(i){
+  print(i)
+  if (i>1) prof=sample(as.factor(BlGr$A))
+  crit=sapply(vGvs, function(p){
+    pp=names(ego(Gvs,1,p)[[1]])
+    x=mx[pp,]
+    if (!is.null(nrow(x))) {
+      n=nrow(x)
+      Y=colMeans(x)
+    }
+    else {
+      n=1
+      Y=x
+    }
+    xA=as.factor(prof)
+    diff(aggregate(Y, by=list(xA),"mean")[,2])
+  })
+  return(crit)
+})
 
-plot(AB0loNN[,3]~AB0loNN[,1])
+nmatr=paste("X",i,sep="",collapse="")
+Gvs=set.vertex.attribute(Gvs, nmatr, value = crit)
+write.graph(Gvs, format = "graphml", file="Gvs.graphml")
+
+for (i in 1:10){
+  nmatr=paste("X",i,sep="",collapse="")
+  Gvs=delete_vertex_attr(Gvs, nmatr)
+}
+
+plot(AB0loNN[,2]~AB0loNN[,1])
 plot(lm(AB0loNN[,3]~AB0loNN[,1])$residuals~AB0loNN[,2])
 
 nnq10=table(cut(AB0loNN[,1],c(-10,-0.152,0.152,10),labels = c("Aneg","Anone","Apos")),
             cut(AB0loNN[,2],c(-10,-0.152,0.152,10),labels = c("Bneg","Bnone","Bpos")))
 chisq.posthoc.test(nnq10, simulate.p.value=T)
+chisq.test(nnq10, simulate.p.value=T)
 
-SnoA=lm(AB0loNN[,3]~AB0loNN[,1]*AB0loNN[,2])
-summary(SnoA)
-SnoAr=SnoA$residuals
-SnoArefd=ecdf(SnoAr)
+Zass_pro(prof=BlGr$A)
 
-si=quantile(SnoAr,c(0.1,0.9)) #c(0.01,0.05,0.1,0.5,0.9,0.95,0.99)
-par(par0)
-par(mai=c(1.5,1,1,0.5), mgp=c(4.2,1,0))
-boxplot(rowMeans(vs10)~cut(SnoAr,c(-0.3,si,0.3)), 
-       notch=T, xlab="Quantiles of the sex ratios (F/M)", ylab="Mean intensity", las=2 )#labels=c("<0.01","0.01-0.05","0.05-0.1","0.1-0.5","0.5-0.9","0.9-0.95","0.95-0.99",">0.99"))
-par(par0)
-x=aov(rowMeans(vb10)~cut(SnoAr,c(-0.3,si,0.3)))
-TukeyHSD(x)
-table(cut(SnoAr,c(-0.3,si[c(3,5)],0.3)))
 
 Sdist=t(sapply(vGvs, function(p){
   pp=names(ego(Gvs,1, p)[[1]])
-  x=mx[pp,]
+  x=vs10[pp,]
   print(which(vGvs==p))
   if (!is.null(nrow(x))) {
     n=nrow(x)
@@ -1797,8 +1522,8 @@ Sdist=t(sapply(vGvs, function(p){
   xB=as.factor(BlGr$B)
   xS=as.factor(sex)
   c(aggregate(Y, by=list(xS), "mean")[,2],
-        aggregate(Y, by=list(xA), "mean")[,2],
-        aggregate(Y, by=list(xB), "mean")[,2])
+    aggregate(Y, by=list(xA), "mean")[,2],
+    aggregate(Y, by=list(xB), "mean")[,2])
 }))
 colnames(Sdist)=c("Fm","M","negA","posA","negB","posB")
 Sdist=as.data.frame(Sdist)
@@ -1820,15 +1545,6 @@ plot(hM$mids+0.015, log10(hM$counts), ty="h", lwd=7, range(c(hF$mids,hM$mids)),
 legend("topright",legend = c("Women","Men"),fill=c(2,4),bty="n", cex=0.75)
 par(new=F)
 
-summary(lm(NNdiaov[,1]~SnoAr))
-summary(lm(NNdiaov[,2]~SnoAr))
-summary(lm(NNdiaov[,3]~SnoAr))
-
-# Tumor associated reactivities were expressed stronger in women
-# This effect was stronger for metastases.
-
-summary(lm(NNdiaov[,1]~SnoAr*NNdiaov[,2]))
-
 Gvs=set_vertex_attr(Gvs, "AB0loS", value =SnoAr)
 Gvs=set_vertex_attr(Gvs, "AB0loA", value =AB0loNN[,1])
 Gvs=set_vertex_attr(Gvs, "AB0loB", value =AB0loNN[,2])
@@ -1849,104 +1565,121 @@ mnBBS=sapply(1:10000, function(i){
 })
 rB=range(mnBBS)*0.5
 
-coefA=c(45,45,-45/(rA))
-clrsA=1*(AB0loNN[,1]>0&-log10(AB0mNN[,4])>(coefA[2]+coefA[4]*AB0loNN[,1])&AB0mNN[,4]<0.05)+
-     3*(AB0loNN[,1]<0&-log10(AB0mNN[,4])>(coefA[1]+coefA[3]*AB0loNN[,1])&AB0mNN[,4]<0.05)+1
-plot(AB0loNN[,1],-log10(AB0mNN[,4]), ylim=c(0,70), pch=16, cex=0.35, col=clrsA, xlab="Log2 Fold Change", ylab="-Log10(p)", main ="A") 
-plot(AB0loNN[,1],-log10(AB0mNN[,4]), ylim=c(0,70), pch=16, cex=0.35, col=(abs(AB0loNN[,1])>0.152&AB0mNNg[,1]!=0)*1+1, xlab="Log2 Fold Change", ylab="-Log10(p)", main ="A") 
-plot(AB0loNN[,1],-log10(AB0mNN[,4]), ylim=c(0,70), pch=16, cex=0.2, col=(AB0mNN[,4]<0.001)*(1+2*(AB0mNNg[,1]<0))+1, xlab="Log2 Fold Change", ylab="-Log10(p)", main ="Blood Group Antigen A") 
+# PCA cor
 
-coefB=c(45,45,-45/(rB))
-clrsB=1*(AB0loNN[,2]>0&-log10(AB0mNN[,5])>(coefB[2]+coefB[4]*AB0loNN[,2])&AB0mNN[,5]<0.05)+
-     3*(AB0loNN[,2]<0&-log10(AB0mNN[,5])>(coefB[1]+coefB[3]*AB0loNN[,2])&AB0mNN[,5]<0.05)+1
-plot(AB0loNN[,2],-log10(AB0mNN[,5]), ylim=c(0,70), pch=16, cex=0.35, col=clrsB, xlab="Log2 Fold Change", ylab="-Log10(p)", main ="B")
-plot(AB0loNN[,2],-log10(AB0mNN[,5]), ylim=c(0,70), pch=16, cex=0.35, col=(abs(AB0loNN[,2])>0.152&AB0mNNg[,2]!=0)*1+1, xlab="Log2 Fold Change", ylab="-Log10(p)", main ="A") 
-plot(AB0loNN[,2],-log10(AB0mNN[,5]), ylim=c(0,70), pch=16, cex=0.2, col=(AB0mNN[,5]<0.001)*(1+2*(AB0mNNg[,2]<0))+1, xlab="Log2 Fold Change", ylab="-Log10(p)", main ="Blood Group Antigen B") 
+x=prcomp(vs10)
+Groupings=cbind(BlGr,dgnC,dgnG,dgnM)
+PCAcor=sapply(1:5,function(i) {
+  print(i)
+  y=sapply(1:6,function(j){
+    w=wilcox.test(x$rotation[,i]~Groupings[,j])
+    ef=diff(aggregate(x$rotation[,i], by=list(Groupings[,j]), "mean")$x)
+    p=w$p.value
+    if (p>0.1) p=1 
+    return(c(p,ef))
+  })
+  y=data.frame(t(y[1,]),t(y[2,]))
+  cnm=c("A","B","Sex","Contr","GBM","Meta")
+  cnm=c(cnm,paste("eff",cnm,sep="_"))
+  colnames(y)=cnm
+  return(y)
+})
 
-clrsNNG=(NNdiaov[,1]<0)*2+(NNdiaov[,1]>0)*4
-plot(AB0loNN[,1],-log10(AB0mNN[,4]), ylim=c(0,70), pch=16, cex=0.35, col=clrsNNG, xlab="Log2 Fold Change", ylab="-Log10(p)", main ="A") 
-plot(AB0loNN[,2],-log10(AB0mNN[,5]), ylim=c(0,70), pch=16, cex=0.35, col=clrsNNG, xlab="Log2 Fold Change", ylab="-Log10(p)", main ="B")
-clrsNNM=(NNdiaov[,2]<0)*2+(NNdiaov[,2]>0)*4
-plot(AB0loNN[,1],-log10(AB0mNN[,4]), ylim=c(0,70), pch=16, cex=0.35, col=clrsNNM, xlab="Log2 Fold Change", ylab="-Log10(p)", main ="A") 
-plot(AB0loNN[,2],-log10(AB0mNN[,5]), ylim=c(0,70), pch=16, cex=0.35, col=clrsNNM, xlab="Log2 Fold Change", ylab="-Log10(p)", main ="B")
+PCAcor[1:6,]=p.adjust(PCAcor[1:6,])
 
 
-chisq.posthoc.test(table(cut(NNdiaov[,1], c(-100,-5e-1,5e-1,100), labels=F),cut(AB0loNN[,1], c(-100,-1.5e-1,1.5e-1,100), labels=F)), simulate.p.value=T)
-chisq.posthoc.test(table(cut(NNdiaov[,2], c(-100,-5e-1,5e-1,100), labels=F),cut(AB0loNN[,1], c(-100,-1.5e-1,1.5e-1,100), labels=F)), simulate.p.value=T)
-chisq.posthoc.test(table(cut(NNdiaov[,1], c(-100,-5e-1,5e-1,100), labels=F),cut(AB0loNN[,2], c(-100,-1.5e-1,1.5e-1,100), labels=F)), simulate.p.value=T)
-chisq.posthoc.test(table(cut(NNdiaov[,2], c(-100,-5e-1,5e-1,100), labels=F),cut(AB0loNN[,2], c(-100,-1.5e-1,1.5e-1,100), labels=F)), simulate.p.value=T)
+# New ABO Louvain ---------------------------------------------------------
+n=length(GvcL)
+AB0xLouv=melt(vs10[names(GvcL),])
+grs=apply(Groupings,2,function(l) rep(l,each=n))
+grs=as.data.frame(grs)
+Grrep=grs
+Grrep$A=gsub(TRUE, "A", Grrep$A)
+Grrep$A=gsub(FALSE, "nonA", Grrep$A)
+Grrep$B=gsub(TRUE, "B", Grrep$B)
+Grrep$B=gsub(FALSE, "nonB", Grrep$B)
+Grrep$N=gsub(TRUE, "O", Grrep$N)
+Grrep$N=gsub(FALSE, "nonO", Grrep$N)
+Grrep$dgnC=gsub(TRUE, "Contr", Grrep$dgnC)
+Grrep$dgnC=gsub(FALSE, "Tu", Grrep$dgnC)
+Grrep$dgnG=gsub(TRUE, "GBM", Grrep$dgnG)
+Grrep$dgnG=gsub(FALSE, "nonGBM", Grrep$dgnG)
+Grrep$dgnM=gsub(TRUE, "Meta", Grrep$dgnM)
+Grrep$dgnM=gsub(FALSE, "nonMeta", Grrep$dgnM)
+Grrep$sex=gsub(TRUE, "F", Grrep$sex)
+Grrep$sex=gsub(FALSE, "M", Grrep$sex)
+AB0xLouv=data.frame(Pat=as.factor(AB0xLouv$Var2), Value=AB0xLouv$value, 
+             Louv=as.factor(rep(GvcL,21)),A=as.factor(Grrep$A), B=as.factor(Grrep$B), 
+             O=as.factor(Grrep$N),Contr=as.factor(Grrep$dgnC), 
+             GBM=as.factor(Grrep$dgnG),Meta=as.factor(Grrep$dgnM),Sex=as.factor(Grrep$sex))
+ABLlm=lme(data=AB0xLouv, Value~A*Sex*Louv,random=~1|Pat)
+resABLlm=lsmeans(ABLlm, pairwise~A|Sex|Louv)
+resABLlm=summary(resABLlm)
+sink(file="blGrA_SeX_Louv.txt")
+print(resABLlm)
+sink()
+ABLlm=lme(data=AB0xLouv, Value~B*Sex*Louv,random=~1|Pat)
+resABLlm=lsmeans(ABLlm, pairwise~B|Sex|Louv)
+resABLlm=summary(resABLlm)
+sink(file="blGrB_SeX_Louv.txt")
+print(resABLlm)
+sink()
 
-plot(table(cut(NNdiaov[,1], breaks=c(-100,-5e-1,5e-1,100), labels=c("Lost", "None", "Gained")),
-           cut(AB0loNN[,1], breaks=c(-100,-1.5e-1,1.5e-1,100), labels=c("Lost", "None", "Gained"))), 
-     main="Gliobalstoma by Blood Group A", xlab="Blood Group A", ylab="GBM") 
+DiaCLlm=lme(data=AB0xLouv, Value~Contr*Louv,random=~1|Pat)
+resDiaLlm=lsmeans(DiaCLlm, pairwise~Contr|Louv)
+resDiaLlm=summary(resDiaLlm)
+reslmC=t(sapply(1:14, function(i) resDiaLlm$contrasts[i,]))
+reslmC=reslmC[order(unlist(reslmC[,3])),]
+write.csv(reslmC, file="reslmC.csv")
 
-2^range(AB0loNN[AB0mNN[,1]<0.001&AB0loNN[,1]<0,1])
-2^range(AB0loNN[AB0mNN[,1]<0.001&AB0loNN[,1]>0,1])
-2^range(AB0loNN[AB0mNN[,2]<0.001&AB0loNN[,2]>0,2])
+DiaGLlm=lme(data=AB0xLouv, Value~GBM*Louv,random=~1|Pat)
+resDiaLlm=lsmeans(DiaGLlm, pairwise~GBM|Louv)
+resDiaLlm=summary(resDiaLlm)
+reslmG=t(sapply(1:14, function(i) resDiaLlm$contrasts[i,]))
+reslmG=reslmG[order(unlist(reslmG[,3])),]
+write.csv(reslmG, file="reslmG.csv")
 
-# Blood group cross-reactivtiy effects spread beyond cross-reactivity 
-# boundaries - the farthest vertices of the induced subgraphs of 
-# the A positive, B positive and A negative domains remain disconnected 
-# up to depth 3 (2 for B negative)
+DiaMLlm=lme(data=AB0xLouv, Value~Meta*Louv,random=~1|Pat)
+resDiaLlm=lsmeans(DiaMLlm, pairwise~Meta|Louv)
+resDiaLlm=summary(resDiaLlm)
 
-ij=AB0mNNg[,1]>0
-gvsA=induced.subgraph(Gvs, vGvs[ij])
-diameter(gvsA, weights=rep(1,length(E(gvsA))))
-x=names(farthest_vertices(gvsA)$vertices)
-gpoles=names(unlist(ego(Gvs,3,x)))
-x=induced.subgraph(Gvs, gpoles)
-components(x)
-
-ij=AB0mNNg[,2]>0
-gvsA=induced.subgraph(Gvs, vGvs[ij])
-diameter(gvsA, weights=rep(1,length(E(gvsA))))
-x=names(farthest_vertices(gvsA)$vertices)
-gpoles=names(unlist(ego(Gvs,2,x)))
-x=induced.subgraph(Gvs, gpoles)
-components(x)
 
 # Modularities ------------------------------------------------------------
 
+modtb=t(sapply(pepi,function(p){
+  Zmod(Gvs, as.numeric(vGvs %in% names(pepiused)[pepiused==p])+1)
+}))
+colnames(modtb)=c("Modularity","Z-score")
+modv=Zmod(Gvs, as.numeric(vGvs %in% vir)+1)
+modlouv=Zmod(Gvs, as.numeric(vGvs %in% vir)+1)
+modtb=rbind(modtb,`All Viral`=modv)
+x=GvcL[vGvs]
+x[is.na(x)]=100
+modlouv=Zmod(Gvs, as.numeric(x))
+modtb=rbind(modtb,`Louvain Clustering`=modlouv)
+modtb=modtb[order(modtb[,2], decreasing = T),]
+modtb=cbind(modtb,Viral=rownames(modtb) %in% pepi[viral])
+x=sapply(rownames(modtb),function(x) {
+  if (x %in% pepi) {
+    mean(dGvs[names(pepiused)[pepiused %in% x]])
+  }
+  else {
+    return(0)
+  }
+})
+x[1]=mean(dGvs)
+xv=dGvs[vir[!is.na(vir)]]
+x[6]=mean(xv[!is.na(xv)])
+modtb=cbind(modtb,`Mean Degree`=x)
+
+write.table(modtb,file = "modtb.csv")
 ### sex
 
-sxj=cut(sxnn, c(-1e16, -1e-16,1e-16, 1e16), labels = c(-1,0,1))
-sexmod=Zmod(Gvs, sxj)
-CV=rowSds(vb010[names(V(Gvs)),])/rowMeans(vb010)[names(V(Gvs))]
-CV=cut(CV, quantile(CV, c(0,0.33,0.67,1))-c(0.001,0,0,-0.001), labels=F)
-cvmod=Zmod(Gvs, CV)
-mn=cut(rowMeans(vb10), quantile(rowMeans(vb10), c(0,0.33,0.67,1))-c(0.001,0,0,-0.001), labels=F)
-mnmod=Zmod(Gvs,mn)
-
-ij=cut(rank(mnvs), 5, labels=F)
-sxmnmod=sapply(1:5,function(i){
-  jj=vsxlq %in% c(-1,1)
-  j=(ij==i)[jj]
-  vf=factor(vsxlq,levels=c(-1,1))
-  vf=vf[!is.na(vf)]
-  gi=induced.subgraph(Gvs, vGvs[jj][j])
-  Zmod(gi, vf[j])
-})
-
-sxmnass=sapply(1:5,function(i){
-  jj=vsxlq %in% c(-1,1)
-  j=(ij==i)[jj]
-  vf=factor(vsxlq,levels=c(-1,1))
-  vf=vf[!is.na(vf)]
-  gi=induced.subgraph(Gvs, vGvs[jj][j])
-  Zass(gi, vf[j])
-})
-
-sexclqmod=Zmod(Gvs, as.factor(vgvsSexclq))
 
 ### degree
 degtr=cut(dGvs, quantile(dGvs, c(0,0.33,0.67,1))-c(0.001,0,0,-0.001), labels=F)
 degass=Zass(Gvs, degtr)
-degmod=Zmod(Gvs, degtr)
+
 
 # AB0
 
-Y=AB0mNNg!=0
-AB0assA=Zass(Gvs, Y[,1])            
-AB0assB=Zass(Gvs, Y[,2])
-AB0modA=Zmod(Gvs, Y[,1]*1+1)            
-AB0modB=Zmod(Gvs, Y[,2]*1+1)
